@@ -1,0 +1,4 @@
+build
+docopt
+pre-commit
+sphinx

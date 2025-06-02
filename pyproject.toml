@@ -1,0 +1,27 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "leco"
+version = "0.0.1"
+authors = [{ name = "Anke Posma", email = "a.j.posma1@uu.nl" }]
+description = "Package containing the Leco model"
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = ["docopt"]
+
+[project.urls]
+"Homepage" = "https://github.com/computationalgeography/leco"
+"Bug Tracker" = "https://github.com/computationalgeography/leco/issues"
+
+[project.scripts]
+leco_model = "leco.cli.leco:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["source/package/leco"]

@@ -1,0 +1,53 @@
+name: Test
+
+on:
+  pull_request:
+  push:
+    branches:
+      - "main"
+
+jobs:
+  build:
+    name: ${{ matrix.platform.os }} / ${{ matrix.platform.arch }} / python-${{ matrix.python_version }}
+    runs-on: ${{ matrix.platform.os }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash -l {0}
+    strategy:
+      fail-fast: false
+      matrix:
+        # min version, max version
+        # 3.11 is the first version supported by darwin / arm64 runner
+        python_version: ["3.11", "3.12"]
+        platform:
+          - { os: "macos-14", arch: arm64 }
+          - { os: "macos-13", arch: x64 }
+          - { os: "ubuntu-24.04", arch: x64 }
+          - { os: "windows-2022", arch: x64 }
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        id: py
+        with:
+          python-version: ${{ matrix.python_version }}
+          cache: "pip"
+          cache-dependency-path: "**/requirements*.txt"
+      - name: Install packages
+        run: |
+          py_interpreter="${{ steps.py.outputs.python-path }}"
+          $py_interpreter -m pip install \
+            -r environment/configuration/requirements.txt
+      - name: Run tests
+        run: |
+          py_interpreter="${{ steps.py.outputs.python-path }}"
+          PYTHONPATH=source/package $py_interpreter source/test/run_all_tests.py
+      - name: Create documentation
+        run: |
+          sphinx-build -M html documentation $documentation_build
+      - name: Create package
+        run: |
+          py_interpreter="${{ steps.py.outputs.python-path }}"
+          PYTHONPATH=source/package $py_interpreter -m build --wheel --outdir dist .
