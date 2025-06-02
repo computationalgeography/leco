@@ -1,0 +1,2 @@
+# leco
+Linguistic Evolutionary COmputations
