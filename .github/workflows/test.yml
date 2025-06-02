@@ -46,7 +46,7 @@ jobs:
           PYTHONPATH=source/package $py_interpreter source/test/run_all_tests.py
       - name: Create documentation
         run: |
-          sphinx-build -M html documentation $documentation_build
+          sphinx-build -M html documentation documentation_build
       - name: Create package
         run: |
           py_interpreter="${{ steps.py.outputs.python-path }}"
