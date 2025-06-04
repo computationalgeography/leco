@@ -1,4 +1,4 @@
-# leco
+# Leco
 
 **L**inguistic **E**volutionary **CO**mputations
 
@@ -26,7 +26,6 @@ Once the development environment has be setup, all that is needed to start devel
 ```bash
 cd leco
 
-# Use `conda activate` when using Conda
 source .venv/bin/activate
 ```
 
