@@ -1,0 +1,20 @@
+{
+    "agents": 500,
+    "steps": 200,
+    "seed": 42,
+    "x_max": 1000,
+    "y_max": 1000,
+    "speed": 20,
+    "meanings": 100,
+    "forms": 120,
+    "birth_rate": 0.01,
+    "death_rate": 0.01,
+    "mutation_rate": 0.001,
+    "int_radius": 40,
+    "int_partner_prob": 0.8,
+    "diffusion_rate": 0.01,
+    "similarity": 0.69,
+    "output": true,
+    "plot_step": 50,
+    "random_init": true
+}

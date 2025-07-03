@@ -5,11 +5,13 @@ import docopt
 
 from ..version import __version__ as version
 from .main import main_function
+from .array_main import run_model
 
 
 @main_function
 def leco() -> None:
-    print("TODO: Run leco model")
+    print("Run leco model")
+    run_model()
 
 
 def main() -> None:
