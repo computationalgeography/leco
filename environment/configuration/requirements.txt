@@ -1,4 +1,12 @@
+scikit-learn
 build
 docopt
 pre-commit
 sphinx
+numpy
+pandas
+geopandas
+shapely
+datetime
+matplotlib
+jsonschema
