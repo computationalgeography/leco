@@ -28,8 +28,8 @@ def point_plotje(
     cmap = matplotlib.colors.ListedColormap(colors)
 
     plt.scatter(
-        population["x"],
-        population["y"],
+        population.geometry.x.values,
+        population.geometry.y.values,
         c=population["language"],  # Convert language to list for coloring
         cmap=cmap,
         vmin=0,  # vmin and vmax define the range of the colormap

@@ -49,7 +49,45 @@ To run the `leco` model, type this command:
 
 ```bash
 cd leco
-PYTHONPATH=source/package python source/script/leco_model.py
+PYTHONPATH=source/package python source/script/leco_model.py -i path/config.toml -o path
+```
+
+-i requires a configuration file in TOML format of which details can be found below.
+-o is an optional argument specifying the path to where the ouput will be stored. If -o is not given, no output will be stored.
+
+## Configuration file
+
+The simulation requires a TOML configuration file to set up the parameters to run the leco model. This file should include the following parameters:
+
+```toml
+# Initialization settings
+agents = 1000
+steps = 100
+seed = 42
+nr_start_languages = 40
+
+# Spatial boundaries
+x_max = 1000
+y_max = 1000
+
+# Agent attributes
+speed = 10
+meanings = 100
+forms = 120
+mutation_rate = 0.001
+
+# Population dynamics
+birth_rate = 0.01
+death_rate = 0.01
+
+# Interaction settings
+int_radius = 5
+int_partner_prob = 0.8
+diffusion_rate = 0.01
+similarity = 0.69
+
+# Output and visualization
+plot_step = 50
 ```
 
 ## Create wheel file
