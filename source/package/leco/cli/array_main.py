@@ -4,6 +4,7 @@ import geopandas as gpd
 from scipy.spatial import KDTree
 from sklearn.cluster import AgglomerativeClustering
 import time
+import os
 from .create_plots import point_plotje, language_number_plotje
 
 
@@ -109,18 +110,27 @@ def move(
 
 
 def mutate_profile(
-    profile: np.ndarray[int],
+    language_profiles: np.ndarray[int],
     rng: np.random.default_rng,
     nr_forms: int,
     mutation_rate: float,
 ) -> np.ndarray[int]:
     """Mutate language profile of agents"""
 
-    mutation_mask = rng.random(len(profile)) < mutation_rate
+    # Get the current number of agents and the number of meanings
+    nr_agents, nr_meanings = language_profiles.shape
 
-    mutated_forms = rng.integers(0, nr_forms, size=len(profile))
+    # Generate mutation masks for all agents at once
+    mutation_prob = rng.random((nr_agents, nr_meanings))
+    mutation_mask = mutation_prob < mutation_rate
 
-    return np.where(mutation_mask, mutated_forms, profile)
+    # Generate the new forms
+    mutated_forms = rng.integers(0, nr_forms, size=(nr_agents, nr_meanings))
+
+    # Mutate the forms if mask is true
+    mutated_profiles = np.where(mutation_mask, mutated_forms, language_profiles)
+
+    return list(mutated_profiles)
 
 
 def nearest_neighbors(
@@ -152,7 +162,7 @@ def interact(
     """Interaction between agents whereby linguistic diffusion occurs"""
 
     # Get the current number of agents and the number of meanings
-    n_agents, n_meanings = language_profiles.shape
+    nr_agents, nr_meanings = language_profiles.shape
     # Create a copy of the language profiles
     new_profiles = language_profiles.copy()
 
@@ -160,14 +170,14 @@ def interact(
     # Calculate the maximum number of neighbors an agent has
     max_neighbors = max(len(nbs) for nbs in neighbors_list) if neighbors_list else 0
     if max_neighbors == 0:
-        return new_profiles
+        return list(new_profiles)
 
     # Generate interaction masks for all agents at once
     interaction_probs = rng.random(
-        (n_agents, max_neighbors)
+        (nr_agents, max_neighbors)
     )  # The probability that an agent interact with each of its neighbors
     diffusion_probs = rng.random(
-        (n_agents, max_neighbors, n_meanings)
+        (nr_agents, max_neighbors, nr_meanings)
     )  # The probability that a form diffuses from a neighbor to an agent, probabilities are taken for every meaning in the language profile
 
     # Loop through the agents
@@ -318,6 +328,10 @@ def run_model(p: dict, output_run: str):
         rng,
     )
 
+    if output_run:
+        # Write initialization dataframe to a .geoparquet file
+        population.to_parquet(os.path.join(output_run, "output000.geoparquet"))
+
     # Initialize variable that tracks the number of languages at each time step
     languagenumber = []
 
@@ -336,14 +350,18 @@ def run_model(p: dict, output_run: str):
         )
 
         # Mutate language profiles
-        population["language_profile"] = population["language_profile"].apply(
-            mutate_profile, args=(rng, p["forms"], p["mutation_rate"])
+        population["language_profile"] = mutate_profile(
+            np.stack(population["language_profile"]),
+            rng,
+            p["forms"],
+            p["mutation_rate"],
         )
 
         # Interact with nearby neighbors
         nbs = nearest_neighbors(
             population.get_coordinates().to_numpy(), p["int_radius"]
         )
+
         population["language_profile"] = interact(
             np.stack(population["language_profile"]),
             nbs,
@@ -363,6 +381,9 @@ def run_model(p: dict, output_run: str):
 
         # Plot the positions of agents in space colored by language
         if output_run:
+            population.to_parquet(
+                os.path.join(output_run, f"output{step:03d}.geoparquet")
+            )
             if (step % p["plot_step"]) == 0:  # plot every plot_step years
                 point_plotje(output_run, population, step, p["x_max"], p["y_max"])
 
