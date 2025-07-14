@@ -45,17 +45,64 @@ def point_plotje(
     plt.close()
 
 
+def calculate_tick_intervals(min_val, max_val, max_ticks=10):
+    """Calculate appropriate tick intervals to keep plots readable"""
+    range_val = max_val - min_val
+
+    if range_val == 0:
+        return [min_val]
+
+    # Calculate rough step size
+    rough_step = range_val / max_ticks
+
+    # Find a "nice" step size (powers of 10, 2, 5)
+    magnitude = 10 ** np.floor(np.log10(rough_step))
+    normalized_step = rough_step / magnitude
+
+    if normalized_step <= 1:
+        nice_step = 1 * magnitude
+    elif normalized_step <= 2:
+        nice_step = 2 * magnitude
+    elif normalized_step <= 5:
+        nice_step = 5 * magnitude
+    else:
+        nice_step = 10 * magnitude
+
+    # Generate ticks
+    first_tick = np.ceil(min_val / nice_step) * nice_step
+    ticks = []
+    tick = first_tick
+    while tick <= max_val:
+        ticks.append(int(tick))
+        tick += nice_step
+
+    # Ensure we have at least min_val and max_val if they're not already included
+    if min_val not in ticks:
+        ticks.insert(0, int(min_val))
+    if max_val not in ticks:
+        ticks.append(int(max_val))
+
+    return sorted(list(set(ticks)))
+
+
 def language_number_plotje(
     output_run: str, languagenumber: list, nr_agents: int, nr_steps: int
 ):
     """Plot number of languages over time"""
+
     plt.plot(languagenumber, marker="o")
     plt.xlabel("Timestep")
-    plt.xticks(range(0, nr_steps + 1, 50), [str(i) for i in range(0, nr_steps + 1, 50)])
     plt.ylabel("Number of Languages")
-    plt.yticks(
-        range(0, nr_agents + 1, 50), [str(i) for i in range(0, nr_agents + 1, 50)]
-    )
+
+    # Calculate tick interval based on number of time steps
+    x_ticks = calculate_tick_intervals(0, nr_steps, max_ticks=10)
+    plt.xticks(x_ticks, [str(i) for i in x_ticks])
+
+    # Calculate tick interval based on number of languages
+    max_languages = max(languagenumber)
+    y_ticks = calculate_tick_intervals(0, max_languages, max_ticks=10)
+
+    plt.yticks(y_ticks, [str(i) for i in y_ticks])
     plt.title("Number of Languages Over Time")
     plt.savefig(os.path.join(output_run, "Number_of_Languages.pdf"))
     plt.close()
