@@ -14,34 +14,30 @@ def population_dynamics(
     death_rate: float,
     birth_rate: float,
 ) -> gpd.GeoDataFrame:
-    """Update population based on birth and death rates"""
+    """Update population based on death and birth rates"""
 
-    nothing_prob = 1 - death_rate - birth_rate
-    probabilities = [nothing_prob, death_rate, birth_rate]
-
-    # Compute the population dynamic action for every agent: nothing, die or reproduce
-    outcomes = rng.choice(
-        ["nothing", "death", "birth"],
-        size=len(population),
-        p=probabilities,
+    # Determine for every agent whether it will die based on the deathrate
+    death_masks = rng.choice(
+        [False, True], size=len(population), p=[1 - death_rate, death_rate]
     )
 
-    # Create masks for the death and birth events
-    death_mask = outcomes == "death"
-    birth_mask = outcomes == "birth"
-
     # Remove the agents that die while remaining consecutive row count number
-    survivors = population[~death_mask].copy().reset_index(drop=True)
+    survivors = population[~death_masks].copy().reset_index(drop=True)
+
+    # Determine for every agent whether it will reproduce based on the birthrate
+    birth_masks = rng.choice(
+        [False, True], size=len(survivors), p=[1 - birth_rate, birth_rate]
+    )
 
     # Handle births: duplicate the agents that give birth
-    if birth_mask.any():
+    if birth_masks.any():
         # Generate new unique IDs for offspring
         max_id = population["id"].max()
-        num_births = birth_mask.sum()
+        num_births = birth_masks.sum()
         new_ids = np.arange(max_id + 1, max_id + 1 + num_births)
 
         # Get parent indices for births
-        birth_indices = np.where(birth_mask)[0]
+        birth_indices = np.where(birth_masks)[0]
 
         # Create offspring by taking parent data and updating IDs
         offspring = population.iloc[birth_indices].copy()
