@@ -49,15 +49,17 @@ To run the `leco` model, type this command:
 
 ```bash
 cd leco
-PYTHONPATH=source/package python source/script/leco_model.py -i path/config.toml -o path
+PYTHONPATH=source/package python source/script/leco_model.py -i path/config.toml -o outputpath
 ```
 
 -i requires a configuration file in TOML format of which details can be found below.
--o is an optional argument specifying the path to where the ouput will be stored. If -o is not given, no output will be stored.
+-o specifies the path to where the ouput will be stored.
+
+The standard run generates .geoparquet files of the population data, including agents ids, positions and language profiles, for every timestep. In addition, a parameter.txt file is created in the same output directory containing the configuration parameters from the config.toml file.
 
 ## Configuration file
 
-The simulation requires a TOML configuration file to set up the parameters to run the leco model. This file should include the following parameters:
+The simulation requires a TOML configuration file to set up the parameters to run the `leco` model. This file should include the following parameters:
 
 ```toml
 # Initialization settings
@@ -84,15 +86,43 @@ death_rate = 0.01
 int_radius = 5
 int_partner_prob = 0.8
 diffusion_rate = 0.01
-similarity = 0.69
+```
 
-# Output and visualization
-plot_step = 50
+## Post-processing options
+
+The `leco` package provides several options of post-processing the data. The language profiles can be classified into languages with the classify option:
+
+```bash
+cd leco
+PYTHONPATH=source/package python source/script/leco_model.py --classify outputpath/resultsdir -d 0.2
+```
+
+The -d argument can be used to specify the distance threshold used for language classification. This is optional and the default is set at a value of 0.2. The output is stored in a single .gpkg file.
+
+Alternatively, classification of the language profiles can be run directly after running the `leco` model:
+
+```bash
+cd leco
+PYTHONPATH=source/package python source/script/leco_model.py --classify-after -i path/config.toml -o outputpath -d 0.2
+```
+
+Other post-processing options regard creating plots of the output data. At the moment, there are two scripts. The first script creates summary plots of the output data, including the number of languages over time and the number of agents per language over time, both saved as .pdf files.
+
+```bash
+cd leco
+PYTHONPATH=source/package python source/script/leco_model.py --plot-summaries outputpath/resultsdir/population.gpkg
+```
+
+The second script creates an animated plot of the agents positions colored by language over time. The output is saved as a .gif file.
+
+```bash
+cd leco
+PYTHONPATH=source/package python source/script/leco_model.py --plot-animation outputpath/resultsdir/population.gpkg
 ```
 
 ## Create wheel file
 
-To create a leco wheel file, type this command:
+To create a `leco` wheel file, type this command:
 
 ```bash
 cd leco
