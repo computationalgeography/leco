@@ -80,6 +80,7 @@ Usage:
     {command} --classify-after -i <configfile> -o <outputpath> [-g <growthratefile>] [-d <distthreshold>]
     {command} --plot-summaries <inputfile>
     {command} --plot-animation <inputfile>
+    {command} --all -i <configfile> -o <outputpath>
 
 Arguments:
     -i <configfile>       Specify path to TOML format configuration file
@@ -93,7 +94,8 @@ Options:
     --classify <outputpath/resultsdir>                      Run language classification on existing leco output
     --classify-after                                        Run language classification directly after running leco model
     --plot-summaries <outputpath/resultsdir/df.gpkg>        Create summarizing plots of the leco model output
-    --plot-animation <outputpath/resultsdir/df.gpkg>        Create animation of the leco model output.
+    --plot-animation <outputpath/resultsdir/df.gpkg>        Create animation of the leco model output
+    --all                                                   Run leco model, language classification and create plots in one go
 
 Examples:
     {command} -i config.toml -o results/
@@ -101,6 +103,7 @@ Examples:
     {command} --classify-after -i config.toml -o results/ -d 0.1
     {command} --plot-summaries results/run_001/population.gpkg
     {command} --plot-animation results/run_001/population.gpkg
+    {command} --all -i config.toml -o results/
 """
     arguments = docopt.docopt(usage, sys.argv[1:], version=version)
     print(f"command-line arguments: {arguments}")
@@ -140,7 +143,14 @@ Examples:
     # Run language classification directly after running the leco model
     if arguments["--classify-after"]:
         print("Running language classification on leco results")
-        dist_threshold = (
-            float(arguments["--distthreshold"]) if arguments["--distthreshold"] else 0.2
-        )
+        dist_threshold = float(arguments["-d"]) if arguments["-d"] else 0.2
         lang_classification(output, dist_threshold)
+
+    if arguments["--all"]:
+        print(
+            "Running leco model, language classification and creating plots in one go"
+        )
+        dist_threshold = float(arguments["-d"]) if arguments["-d"] else 0.2
+        lang_classification(output, dist_threshold)
+        plot_sums(os.path.join(output, "population.gpkg"))
+        plot_anim(os.path.join(output, "population.gpkg"), config)

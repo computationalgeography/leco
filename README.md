@@ -67,6 +67,9 @@ agents = 1000
 steps = 100
 seed = 42
 nr_start_languages = 40
+init_area_edge = 20 # Area edge (same for x and y) or false
+init_x = 500 # Coordinate value or false
+init_y = 500 # Coordinate value or false
 
 # Spatial boundaries
 x_max = 1000
@@ -87,6 +90,8 @@ int_radius = 5
 int_partner_prob = 0.8
 diffusion_rate = 0.01
 ```
+
+Initalization of the agents positions can be defined by the init_area_edge, init_x and init_y. The former specifies the size (n x n) of the initialization area, while the latter two specify the start coordinates. All three can be false in which case, the values are chosen randomly between 0 and x_max or y_max.
 
 ## Post-processing options
 
@@ -118,6 +123,13 @@ The second script creates an animated plot of the agents positions colored by la
 ```bash
 cd leco
 PYTHONPATH=source/package python source/script/leco_model.py --plot-animation outputpath/resultsdir/population.gpkg
+```
+
+To run the `leco` model, classification and both plot steps in one go:
+
+```bash
+cd leco
+PYTHONPATH=source/package python source/script/leco_model.py --all -i path/config.toml -o outputpath
 ```
 
 ## Create wheel file

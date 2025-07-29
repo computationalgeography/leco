@@ -210,10 +210,35 @@ def interact(
 
 
 def initialize_coordinates(
-    rng: np.random.default_rng, max_value: float, nr_agents: int
+    rng: np.random.default_rng,
+    max_value: float,
+    init_edge: float | bool,
+    init_coord: float | bool,
+    nr_agents: int,
 ) -> np.ndarray[float]:
     """Randomly initialize coordinates for all agents within the specified range"""
-    return rng.uniform(low=0.0, high=max_value, size=nr_agents)
+
+    if init_edge is not False:
+        if init_coord is not False:
+            # If a specific coordinate is given, use it for all agents
+            if init_coord < 0 or init_coord > max_value:
+                raise ValueError(
+                    f"Initial coordinate {init_coord} must be between 0 and {max_value}."
+                )
+            mid_point = init_coord
+        else:
+            mid_point = rng.uniform(0.0, max_value, size=1)
+
+        lowest = mid_point - init_edge
+        if lowest < 0.0:
+            lowest = 0.0
+        highest = mid_point + init_edge
+        if highest > max_value:
+            highest = max_value
+        return rng.uniform(low=lowest, high=highest, size=nr_agents)
+
+    else:
+        return rng.uniform(low=0.0, high=max_value, size=nr_agents)
 
 
 def initialize_language_profile(
@@ -227,6 +252,9 @@ def initialize_board(
     nr_agents: int,
     x_max: int,
     y_max: int,
+    init_edge: float | bool,
+    init_x: float | bool,
+    init_y: float | bool,
     nr_languages: int,
     nr_forms: int,
     nr_meanings: int,
@@ -243,8 +271,8 @@ def initialize_board(
     ids = list(range(1, nr_agents + 1))  # ids from 1 to number of agents
 
     # Initial spatial distribution of the agents
-    x = initialize_coordinates(rng, x_max, nr_agents)
-    y = initialize_coordinates(rng, y_max, nr_agents)
+    x = initialize_coordinates(rng, x_max, init_edge, init_x, nr_agents)
+    y = initialize_coordinates(rng, y_max, init_edge, init_y, nr_agents)
 
     # Initial language profile, represented by a string of integers
     # For each agent:
@@ -292,6 +320,9 @@ def run_model(p: dict, output_run: str):
         p["agents"],
         p["x_max"],
         p["y_max"],
+        p["init_area_edge"],
+        p["init_x"],
+        p["init_y"],
         p["nr_start_languages"],
         p["forms"],
         p["meanings"],
