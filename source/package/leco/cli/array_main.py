@@ -4,7 +4,6 @@ import geopandas as gpd
 from scipy.spatial import KDTree
 import time
 import os
-# from .create_plots import point_plotje, language_number_plotje
 
 
 def population_dynamics(
@@ -210,25 +209,6 @@ def interact(
     return list(new_profiles)
 
 
-""" def language_classification(
-    # distance_matrix: np.ndarray[float],
-    language_profiles: np.ndarray[int],
-    sim_threshold: float,
-) -> np.ndarray[int]:
-    "Group language profiles into languages based on similarity threshold following hierarchical clustering"
-
-    clustering = AgglomerativeClustering(
-        n_clusters=None,
-        distance_threshold=1 - sim_threshold,  # Threshold for clustering
-        metric="hamming",
-        linkage="average",
-    )  # Average linkage calculates over the mean of the distances between all points in the clusters
-
-    categories = clustering.fit_predict(language_profiles)
-
-    return categories """
-
-
 def initialize_coordinates(
     rng: np.random.default_rng, max_value: float, nr_agents: int
 ) -> np.ndarray[float]:
@@ -250,7 +230,6 @@ def initialize_board(
     nr_languages: int,
     nr_forms: int,
     nr_meanings: int,
-    # similarity: float,
     rng: np.random.default_rng,
 ) -> gpd.GeoDataFrame:
     """
@@ -287,15 +266,11 @@ def initialize_board(
         start_profiles[assignment].copy() for assignment in profile_assignments
     ]
 
-    # Group agents into different languages following the similarity threshold based on their language profiles
-    # classification = language_classification(np.stack(language_profile), similarity)
-
     # Create a geopandas dataframe with agent id, point positions, language profile and language
     population = gpd.GeoDataFrame(
         {
             "id": ids,
             "language_profile": language_profile,
-            # "language": classification,
         },
         geometry=gpd.points_from_xy(x, y),
     )
@@ -320,7 +295,6 @@ def run_model(p: dict, output_run: str):
         p["nr_start_languages"],
         p["forms"],
         p["meanings"],
-        # p["similarity"],
         rng,
     )
 
@@ -366,24 +340,11 @@ def run_model(p: dict, output_run: str):
             p["diffusion_rate"],
         )
 
-        """  # Group agents into different languages based on their language profiles
-        population["language"] = language_classification(
-            np.stack(population["language_profile"]), p["similarity"]
-        ) """
-
         # Save output to geoparquet file
         if output_run:
             population.to_parquet(
                 os.path.join(output_run, f"output{step:03d}.geoparquet")
             )
-    """             # Plot the positions of agents in space colored by language
-            if (step % p["plot_step"]) == 0:  # plot every plot_step years
-                point_plotje(output_run, population, step, p["x_max"], p["y_max"])
-
-         # Plot the number of languages over time
-    if output_run:
-        nr_agents = len(population)
-        language_number_plotje(output_run, languagenumber, nr_agents, p["steps"]) """
 
     print("--- %s seconds ---" % (time.time() - start_time))
     print("--- %s minutes ---" % ((time.time() - start_time) / 60))
