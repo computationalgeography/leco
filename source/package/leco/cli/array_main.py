@@ -6,19 +6,39 @@ import time
 import os
 
 
+def set_birth_rate(
+    multiplier: float,
+    growth_rate: float,
+    birth_rate: float,
+    death_rate: float,
+    init_population: int,
+    N: int,
+) -> float:
+    """Calculate the birth rate based on the multiplier and growth rate"""
+    if multiplier > 1:
+        # If the multiplier is not set to 1, apply logistic growth
+        K = init_population * multiplier
+        effective_growth_rate = growth_rate * (1 - N / K)
+        birth_rate = death_rate + effective_growth_rate
+        return birth_rate
+    else:
+        # Use the constant initalized birth rates
+        return birth_rate
+
+
 def population_dynamics(
     population: gpd.GeoDataFrame,
-    rng: np.random.default_rng,
     death_rate: float,
     birth_rate: float,
     max_id: int,
+    rng: np.random.default_rng,
 ) -> gpd.GeoDataFrame:
     """Update population based on death and birth rates"""
 
+    N = len(population)
+
     # Determine for every agent whether it will die based on the deathrate
-    death_masks = rng.choice(
-        [False, True], size=len(population), p=[1 - death_rate, death_rate]
-    )
+    death_masks = rng.choice([False, True], size=N, p=[1 - death_rate, death_rate])
 
     # Remove the agents that die while remaining consecutive row count number
     survivors = population[~death_masks].copy().reset_index(drop=True)
@@ -339,10 +359,24 @@ def run_model(p: dict, output_run: str):
     for step in range(1, p["steps"] + 1):
         print(step)
         population["timestep"] = step
+        current_pop_size = len(population)
 
+        # Determine the current birh rate based on constant rates (multiplier == 1) or logistic growth (multiplier != 1)
+        current_birth_rate = set_birth_rate(
+            p["multiplier"],
+            p["growth_rate"],
+            p["birth_rate"],
+            p["death_rate"],
+            p["agents"],
+            current_pop_size,
+        )
         # Apply birth and death rates to the population
         population, max_id = population_dynamics(
-            population, rng, p["death_rate"], p["birth_rate"], max_id
+            population,
+            p["death_rate"],
+            current_birth_rate,
+            max_id,
+            rng,
         )
 
         # Move the agents within space

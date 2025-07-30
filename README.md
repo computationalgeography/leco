@@ -82,8 +82,10 @@ forms = 120
 mutation_rate = 0.001
 
 # Population dynamics
-birth_rate = 0.01
 death_rate = 0.01
+birth_rate = 0.01
+multiplier = 1
+growth_rate = 0.131
 
 # Interaction settings
 int_radius = 5
@@ -92,6 +94,8 @@ diffusion_rate = 0.01
 ```
 
 Initalization of the agents positions can be defined by the init_area_edge, init_x and init_y. The former specifies the size (n x n) of the initialization area, while the latter two specify the start coordinates. All three can be false in which case, the values are chosen randomly between 0 and x_max or y_max.
+
+Population dynamics can follow constant birth and death rates as determined in the configuration file by setting the multiplier parameter to 1. If the multiplier is set at a value higher than 1, the number of agents will increase following a logistic growth curve with a constant death rate as configured. The carrying capacity K is determined by the number of agents * the multiplier as determined in the configuration file. A multiplier value lower than 1 will be treated as 1, i.e. constant birth and death rates.
 
 ## Post-processing options
 
