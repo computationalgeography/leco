@@ -7,10 +7,10 @@ from pathlib import Path
 
 from ..version import __version__ as version
 from .main import main_function
-from .array_main import run_model
+from .model import run_model
 from .language_classification import run_classification
-from .summary_plots import plot_summaries
-from .animation_plot import plot_animation
+
+from .plots.plotting_main import plot
 
 
 @main_function
@@ -24,14 +24,14 @@ def lang_classification(input_dir: str, dist_threshold: float) -> None:
     run_classification(input_dir, dist_threshold)
 
 
-def plot_sums(input_file: str) -> None:
-    print("Create summarizing plots of the leco model output")
-    plot_summaries(input_file)
-
-
-def plot_anim(input_file: str, parameters: dict) -> None:
-    print("Create animation of the leco model output")
-    plot_animation(input_file, parameters)
+def load_config(config_file):
+    """Load TOML config with error handling"""
+    try:
+        with open(config_file, "rb") as f:
+            return tomllib.load(f)
+    except Exception as e:
+        print(f"Error: {e}. Please provide a configuration file in TOML format")
+        exit(1)
 
 
 def create_run_dir(outputpath: str, params: dict) -> str:
@@ -78,8 +78,10 @@ Usage:
     {command} -i <configfile> -o <outputpath> [-g <growthratefile>]
     {command} --classify <outputpath/resultsdir> [-d <distthreshold>]
     {command} --classify-after -i <configfile> -o <outputpath> [-g <growthratefile>] [-d <distthreshold>]
+    {command} --plot <inputfile>
     {command} --plot-summaries <inputfile>
     {command} --plot-animation <inputfile>
+    {command} --plot-3d <inputfile>
     {command} --all -i <configfile> -o <outputpath>
 
 Arguments:
@@ -93,64 +95,91 @@ Options:
     --version                                               Show version and exit
     --classify <outputpath/resultsdir>                      Run language classification on existing leco output
     --classify-after                                        Run language classification directly after running leco model
+    --plot <outputpath/resultsdir/df.gpkg>                  Creates plots of the leco model output: summary, animated and 3D interactive plots
     --plot-summaries <outputpath/resultsdir/df.gpkg>        Create summarizing plots of the leco model output
     --plot-animation <outputpath/resultsdir/df.gpkg>        Create animation of the leco model output
+    --plot-3d <outputpath/resultsdir/df.gpkg>               Create 3D interactive plot of the leco model output
     --all                                                   Run leco model, language classification and create plots in one go
 
 Examples:
     {command} -i config.toml -o results/
     {command} --classify results/run_001/ -d 0.1
     {command} --classify-after -i config.toml -o results/ -d 0.1
+    {command} --plot results/run_001/population.gpkg
     {command} --plot-summaries results/run_001/population.gpkg
     {command} --plot-animation results/run_001/population.gpkg
+    {command} --plot-3d results/run_001/population.gpkg
     {command} --all -i config.toml -o results/
 """
     arguments = docopt.docopt(usage, sys.argv[1:], version=version)
     print(f"command-line arguments: {arguments}")
 
-    if arguments["--classify"]:
-        input_dir = arguments["--classify"]
-        dist_threshold = float(arguments["-d"]) if arguments["-d"] else 0.2
-        return lang_classification(input_dir, dist_threshold)
+    # Helper functions
+    def get_dist_threshold() -> float:
+        """Get distance threshold from command line arguments or return default value"""
+        return float(arguments["-d"]) if arguments["-d"] else 0.2
 
-    if arguments["--plot-summaries"]:
-        input_file = arguments["--plot-summaries"]
-        return plot_sums(input_file)
+    def get_param_file(input_file: str) -> str:
+        """Get parameter file from command line arguments or return None"""
+        # if arguments["--plot-animation"] or arguments["--plot-3d"] or arguments["--plot"]:
+        return open_parameters(Path(input_file).parent)
+        # return None
 
-    if arguments["--plot-animation"]:
-        input_file = arguments["--plot-animation"]
-        param_file = open_parameters(Path(input_file).parent)
-        return plot_anim(input_file, param_file)
+    # Command dispatch table of commands that don't require the leco model to run
+    commands = {
+        "--classify": lambda: lang_classification(
+            arguments["--classify"], get_dist_threshold()
+        ),
+        "--plot-summaries": lambda: plot(
+            arguments["--plot-summaries"], None, True, False, False
+        ),
+        "--plot-animation": lambda: plot(
+            arguments["--plot-animation"],
+            get_param_file(arguments["--plot-animation"]),
+            False,
+            True,
+            False,
+        ),
+        "--plot-3d": lambda: plot(arguments["--plot-3d"], None, False, False, True),
+        "--plot": lambda: plot(
+            arguments["--plot"], get_param_file(arguments["--plot"]), True, True, True
+        ),
+    }
 
-    config_file = arguments["-i"]
-    # Parse the TOML file and make sure the right format is used
+    # Execute single commands
+    for cmd, func in commands.items():
+        if arguments[cmd]:
+            return func()
+
+    # Handle main workflow (leco model run and therefore a config file is required)
+    if not arguments["-i"]:
+        return print(
+            "Please provide a configuration file in TOML format. See --help for usage."
+        )
+
+    # Load the configuration file
+    config = load_config(arguments["-i"])
+    # Create a subdirectory for the specific run in the output path and store the parameter values
+    output = create_run_dir(arguments["-o"], config) if arguments["-o"] else None
+
+    # Run main leco model
     try:
-        with open(config_file, "rb") as g:
-            config = tomllib.load(g)
+        leco(config, output)
     except Exception as e:
-        print(f"Error: {e}. Please provide a configuration file in TOML format")
+        print(f"Error running leco model: {e}")
+        print("Terminating execution - skipping post-processing")
         exit(1)
 
-    output = arguments["-o"]  # Will be None if not provided
-
-    if output:
-        # Create a subdirectory for the specific run in the output path and store the parameter values
-        output = create_run_dir(output, config)
-
-    # Run the leco model
-    leco(config, output)
-
-    # Run language classification directly after running the leco model
-    if arguments["--classify-after"]:
+    # Post-processing pipeline
+    if arguments["--classify-after"] or arguments["--all"]:
         print("Running language classification on leco results")
-        dist_threshold = float(arguments["-d"]) if arguments["-d"] else 0.2
-        lang_classification(output, dist_threshold)
+        lang_classification(output, get_dist_threshold())
 
     if arguments["--all"]:
-        print(
-            "Running leco model, language classification and creating plots in one go"
+        plot(
+            os.path.join(output, "population.gpkg"),
+            open_parameters(output),
+            True,
+            True,
+            True,
         )
-        dist_threshold = float(arguments["-d"]) if arguments["-d"] else 0.2
-        lang_classification(output, dist_threshold)
-        plot_sums(os.path.join(output, "population.gpkg"))
-        plot_anim(os.path.join(output, "population.gpkg"), config)

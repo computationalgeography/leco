@@ -48,36 +48,6 @@ def calculate_tick_intervals(
     return sorted(list(set(ticks)))
 
 
-def create_colormap(nr_languages: int) -> matplotlib.colors.ListedColormap:
-    """Create a colormap for the languages"""
-    nr_colors = 20  # number of colors to extract from each of the base_cmaps below
-    base_cmaps = ["Greys", "Purples", "Reds", "Blues", "Oranges", "Greens", "RdPu"]
-
-    # Sample from linspace 0.2 to 0.8 to avoid having overly dark and light shades
-    raw_colors = np.concatenate(
-        [plt.get_cmap(name)(np.linspace(0.2, 0.8, nr_colors)) for name in base_cmaps]
-    )
-
-    nr_unique_colors = len(raw_colors)
-    np.random.shuffle(raw_colors)  # Shuffle colors
-
-    if nr_languages <= nr_unique_colors:
-        selected_colors = raw_colors[0:nr_languages]
-    else:
-        # If not enough unique colors, repeat some colors
-        print(
-            f"Not enough colors ({nr_unique_colors}) for {nr_languages} languages: some colors will be used multiple times."
-        )
-        # Evenly distribute reused colors to avoid repetition at the same time
-        selected_colors = []
-        for i in range(nr_languages):
-            color_idx = i % nr_unique_colors
-            selected_colors.append(raw_colors[color_idx])
-        selected_colors = np.array(selected_colors)
-
-    return matplotlib.colors.ListedColormap(selected_colors)  # Create a colormap
-
-
 def language_number_plot(output_path: str, languagenumber: list, nr_steps: int) -> None:
     """Plot number of languages over time"""
 
@@ -102,14 +72,13 @@ def language_number_plot(output_path: str, languagenumber: list, nr_steps: int) 
 def language_counts_plot(
     language_counts: gpd.GeoDataFrame,
     output_path: str,
+    cmap: matplotlib.colors.ListedColormap,
 ) -> None:
     """Plot number of agents speaking a language over time"""
 
     # Sort the languages by most to least spoken at the first timestep, so most spoken languages are shown on the bottom
     sorted_cols = language_counts.iloc[0].sort_values(ascending=False).index
     language_counts = language_counts[sorted_cols]
-
-    cmap = create_colormap(len(language_counts.columns))
 
     fig, ax = plt.subplots(figsize=(12, 6))
 
@@ -132,7 +101,7 @@ def language_counts_plot(
     plt.close()
 
 
-def plot_summaries(input_file: str) -> None:
+def plot_summaries(input_file: str, cmap: matplotlib.colors.ListedColormap) -> None:
     """Create summarizing plots of the leco model output"""
 
     # Read in the population data across all timesteps
@@ -149,4 +118,4 @@ def plot_summaries(input_file: str) -> None:
     language_counts = (
         population.groupby(["timestep", "language"])["id"].count().unstack(fill_value=0)
     )
-    language_counts_plot(language_counts, output_path)
+    language_counts_plot(language_counts, output_path, cmap)

@@ -1,5 +1,4 @@
 import os
-import numpy as np
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import matplotlib
@@ -43,39 +42,10 @@ def create_scatterframe(data, ax, cmap, nr_languages, x_max, y_max) -> None:
     return [scatter]
 
 
-def create_colormap(nr_languages: int) -> matplotlib.colors.ListedColormap:
-    """Create a colormap for the languages"""
-    nr_colors = 20  # number of colors to extract from each of the base_cmaps below
-    base_cmaps = ["Greys", "Purples", "Reds", "Blues", "Oranges", "Greens", "RdPu"]
-
-    # Sample from linspace 0.2 to 0.8 to avoid having overly dark and light shades
-    raw_colors = np.concatenate(
-        [plt.get_cmap(name)(np.linspace(0.2, 0.8, nr_colors)) for name in base_cmaps]
-    )
-
-    nr_unique_colors = len(raw_colors)
-    np.random.shuffle(raw_colors)  # Shuffle colors
-
-    if nr_languages <= nr_unique_colors:
-        selected_colors = raw_colors[0:nr_languages]
-    else:
-        # If not enough unique colors, repeat some colors
-        print(
-            f"Not enough colors ({nr_unique_colors}) for {nr_languages} languages: some colors will be used multiple times."
-        )
-        # Evenly distribute reused colors to avoid repetition at the same time
-        selected_colors = []
-        for i in range(nr_languages):
-            color_idx = i % nr_unique_colors
-            selected_colors.append(raw_colors[color_idx])
-        selected_colors = np.array(selected_colors)
-
-    return matplotlib.colors.ListedColormap(selected_colors)  # Create a colormap
-
-
 def create_animation(
     animation_data: list[dict],
     output_path: str,
+    cmap: matplotlib.colors.ListedColormap,
     x_max: int,
     y_max: int,
     filename: str = "animation.gif",
@@ -90,9 +60,6 @@ def create_animation(
         all_languages.update(data["population"]["language"])
     unique_languages = sorted(list(all_languages))
     nr_languages = len(unique_languages)
-
-    # Create a colormap
-    cmap = create_colormap(nr_languages)
 
     # Create the animation using the FuncAnimation class
     anim = FuncAnimation(
@@ -119,7 +86,9 @@ def create_animation(
     print(f"Animation saved: {gif_path}")
 
 
-def plot_animation(input_file: str, parameters: dict) -> None:
+def plot_animation(
+    input_file: str, parameters: dict, cmap: matplotlib.colors.ListedColormap
+) -> None:
     """Create an animation of the leco model output"""
     # Read in the population data across all timesteps
     population = gpd.read_file(input_file)
@@ -135,6 +104,7 @@ def plot_animation(input_file: str, parameters: dict) -> None:
     create_animation(
         animation_data,
         output_path,
+        cmap,
         parameters["x_max"],
         parameters["y_max"],
     )
