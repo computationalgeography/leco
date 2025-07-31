@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import geopandas as gpd
+from shapely import Polygon, LineString, box  # I could also just import shapely
 from scipy.spatial import KDTree
 import time
 import os
@@ -107,21 +108,129 @@ def move_y(
     return new_pos
 
 
+def find_intersecting_movements(
+    old_coor: gpd.GeoSeries.geometry,
+    new_coor: gpd.GeoSeries.geometry,
+    barrier: Polygon,
+) -> np.ndarray[bool]:
+    """Find which agent movements intersect with the barrier"""
+
+    # Create movement lines from old to new positions
+    movement_lines = gpd.GeoSeries(
+        [LineString([p1, p2]) for p1, p2 in zip(old_coor, new_coor)],
+        index=old_coor.index,
+    )
+
+    # Find agents already intersecting the barrier at their old position
+    already_at_barrier = old_coor.intersects(barrier)
+
+    # Find which movement lines intersect the barrier
+    crosses_barrier = movement_lines.intersects(barrier)
+
+    # Only keep those who weren't already at the barrier
+    result = crosses_barrier & ~already_at_barrier
+
+    return result.to_numpy()
+
+
+def calculate_away_angle(
+    x_coor: float,
+    y_coor: float,
+    barrier: Polygon,
+    rng: np.random.default_rng,
+) -> float:
+    """Calculate movement direction that points away from rectangular barrier"""
+
+    # Get barrier bounds for directional movement
+    minx, miny, maxx, maxy = barrier.bounds
+
+    # Determine which side of the rectangle the agent is closest to and point away from that side
+    # Calculate distances to each side of the barrier
+    dist_to_left = abs(x_coor - minx)
+    dist_to_right = abs(x_coor - maxx)
+    dist_to_bottom = abs(y_coor - miny)
+    dist_to_top = abs(y_coor - maxy)
+
+    # Stack distances to find the closest side
+    dists = np.stack([dist_to_left, dist_to_right, dist_to_bottom, dist_to_top], axis=0)
+    closest_side = np.argmin(dists, axis=0)  # 0 = left, 1 = right, 2 = bottom, 3 = top
+
+    # Random variance for each agent
+    angle_variance = np.pi / 3  # ±60 degrees
+    variance = rng.uniform(-angle_variance, angle_variance, size=x_coor.shape)
+
+    # Initialize angles
+    angles = np.zeros_like(x_coor)
+
+    # Set angles away from the closest side of the rectangle
+    angles[closest_side == 0] = np.pi  # left → move left
+    angles[closest_side == 1] = 0  # right → move right
+    angles[closest_side == 2] = -np.pi / 2  # bottom → move down
+    angles[closest_side == 3] = np.pi / 2  # top → move up
+
+    # Add random variance
+    angles += variance
+
+    return angles
+
+
 def move(
     position: gpd.GeoSeries.geometry,
+    barrier: Polygon | None,
+    bar_impediment: float,
     rng: np.random.default_rng,
     speed: float,
     x_max: int,
     y_max: int,
 ) -> gpd.GeoSeries.geometry:
     """Move agents across a continuous space"""
+
     angle = movement_direction(rng, len(position))  # Get random angle for all agents
     new_x = move_x(position.x.values, speed, angle, x_max)  # Move in x direction
     new_y = move_y(position.y.values, speed, angle, y_max)  # Move in y direction
+    new_position = gpd.points_from_xy(new_x, new_y)
 
-    new_positions = gpd.points_from_xy(new_x, new_y)
+    # If there is no barrier or no impediment from the barrier, return the new positions
+    if barrier is None or bar_impediment == 0:
+        return new_position
 
-    return new_positions
+    # Check if the barrier impediment falls within the range of [0,1]
+    if bar_impediment < 0 or bar_impediment > 1:
+        raise ValueError(
+            f"The barrier impediment value {bar_impediment} must be between 0 and 1."
+        )
+
+    # Find agents which migration routes intersect with the barrier
+    intersecting = find_intersecting_movements(position, new_position, barrier)
+
+    # If none of the routes are intersecting with the barrier, return new positions
+    if not np.any(intersecting):
+        return new_position
+
+    # Get the agent ids that intersect with the barrier
+    intersecting_indices = np.where(intersecting)[0]
+
+    # Generate impediment masks for the intersecting agents based on the barrier impediment
+    impeded_prob = rng.random(len(intersecting_indices))
+    impeded_agents = intersecting_indices[impeded_prob < bar_impediment]
+
+    # If none of the agents is impeded by the barrier, return new positions
+    if not np.any(impeded_agents):
+        return new_position
+
+    # Get the x and y coordinates from the current positions of the impeded agents
+    impeded_x = position.x.iloc[impeded_agents].values
+    impeded_y = position.y.iloc[impeded_agents].values
+
+    # Calculate a new movement direction for each impeded agent away from the barrier
+    away_angles = calculate_away_angle(impeded_x, impeded_y, barrier, rng)
+
+    # Update the new positions of the impeded agents
+    new_x[impeded_agents] = move_x(impeded_x, speed, away_angles, x_max)
+    new_y[impeded_agents] = move_y(impeded_y, speed, away_angles, y_max)
+    new_position = gpd.points_from_xy(new_x, new_y)
+
+    return new_position
 
 
 def mutate_profile(
@@ -232,13 +341,13 @@ def interact(
 def initialize_coordinates(
     rng: np.random.default_rng,
     max_value: float,
-    init_edge: float | bool,
+    init_radius: float | bool,
     init_coord: float | bool,
     nr_agents: int,
 ) -> np.ndarray[float]:
     """Randomly initialize coordinates for all agents within the specified range"""
 
-    if init_edge is not False:
+    if init_radius is not False:
         if init_coord is not False:
             # If a specific coordinate is given, use it for all agents
             if init_coord < 0 or init_coord > max_value:
@@ -249,16 +358,50 @@ def initialize_coordinates(
         else:
             mid_point = rng.uniform(0.0, max_value, size=1)
 
-        lowest = mid_point - init_edge
+        lowest = mid_point - init_radius
         if lowest < 0.0:
             lowest = 0.0
-        highest = mid_point + init_edge
+        highest = mid_point + init_radius
         if highest > max_value:
             highest = max_value
         return rng.uniform(low=lowest, high=highest, size=nr_agents)
 
     else:
         return rng.uniform(low=0.0, high=max_value, size=nr_agents)
+
+
+def initialize_barrier(
+    max_coor: float,
+    bar_x: float,
+    bar_y: float,
+    bar_x_radius: float,
+    bar_y_radius: float,
+) -> Polygon:
+    """Initialize a barrier in the continuous space"""
+
+    barrier = Polygon(
+        [
+            (bar_x - bar_x_radius, bar_y - bar_y_radius),
+            (bar_x + bar_x_radius, bar_y - bar_y_radius),
+            (bar_x + bar_x_radius, bar_y + bar_y_radius),
+            (bar_x - bar_x_radius, bar_y + bar_y_radius),
+        ]
+    )
+
+    # Bounding box for valid space
+    bounds = box(0, 0, max_coor, max_coor)
+
+    # Clip the barrier to fit inside the bounds
+    barrier_clipped = barrier.intersection(bounds)
+
+    # Check if clipping occurred
+    if not barrier_clipped.equals(barrier):
+        print(
+            f"Warning: Barrier at ({bar_x:.2f}, {bar_y:.2f}) was clipped to fit within "
+            f"bounds [0, {max_coor}]"
+        )
+
+    return barrier_clipped
 
 
 def initialize_language_profile(
@@ -268,11 +411,11 @@ def initialize_language_profile(
     return rng.integers(0, nr_forms, nr_meanings)
 
 
-def initialize_board(
+def initialize_population(
     nr_agents: int,
     x_max: int,
     y_max: int,
-    init_edge: float | bool,
+    init_radius: float | bool,
     init_x: float | bool,
     init_y: float | bool,
     nr_languages: int,
@@ -291,8 +434,8 @@ def initialize_board(
     ids = list(range(1, nr_agents + 1))  # ids from 1 to number of agents
 
     # Initial spatial distribution of the agents
-    x = initialize_coordinates(rng, x_max, init_edge, init_x, nr_agents)
-    y = initialize_coordinates(rng, y_max, init_edge, init_y, nr_agents)
+    x = initialize_coordinates(rng, x_max, init_radius, init_x, nr_agents)
+    y = initialize_coordinates(rng, y_max, init_radius, init_y, nr_agents)
 
     # Initial language profile, represented by a string of integers
     # For each agent:
@@ -335,12 +478,23 @@ def run_model(p: dict, output_run: str):
     # Start to track model run time
     start_time = time.time()
 
+    # Initialize a spatial barrier if specified
+    barrier = None
+    if p["barrier"]:
+        barrier = initialize_barrier(
+            p["x_max"],
+            p["bar_x"],
+            p["bar_y"],
+            p["bar_x_radius"],
+            p["bar_y_radius"],
+        )
+
     # Initialize population of agents
-    population = initialize_board(
+    population = initialize_population(
         p["agents"],
         p["x_max"],
         p["y_max"],
-        p["init_area_edge"],
+        p["init_area_radius"],
         p["init_x"],
         p["init_y"],
         p["nr_start_languages"],
@@ -381,7 +535,13 @@ def run_model(p: dict, output_run: str):
 
         # Move the agents within space
         population.geometry = move(
-            population.geometry, rng, p["speed"], p["x_max"], p["y_max"]
+            population.geometry,
+            barrier,
+            p["bar_impediment"],
+            rng,
+            p["speed"],
+            p["x_max"],
+            p["y_max"],
         )
 
         # Mutate language profiles

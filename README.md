@@ -75,6 +75,14 @@ init_y = 500 # Coordinate value or false
 x_max = 1000
 y_max = 1000
 
+#[barrier]
+barrier = true
+bar_x = 200
+bar_y = 500
+bar_x_radius = 20
+bar_y_radius = 500
+bar_impediment = 0.5
+
 # Agent attributes
 speed = 10
 meanings = 100
@@ -94,6 +102,8 @@ diffusion_rate = 0.01
 ```
 
 Initalization of the agents positions can be defined by the init_area_edge, init_x and init_y. The former specifies the size (n x n) of the initialization area, while the latter two specify the start coordinates. All three can be false in which case, the values are chosen randomly between 0 and x_max or y_max.
+
+A spatial barrier can be specified using the center coordinates and radius for both x and y values. The bar_impediment parameter determines the degree of hinder as opposed by the barrier, ranging from 0 to 1 whereby a value of 0 means no hinder and a value of 1 complete blockage. This is translated to the model as the probability of an agent to pass the barrier. When an agent at first try is not allowed to pass the barrier, it will move in a direction away from the barrier.
 
 Population dynamics can follow constant birth and death rates as determined in the configuration file by setting the multiplier parameter to 1. If the multiplier is set at a value higher than 1, the number of agents will increase following a logistic growth curve with a constant death rate as configured. The carrying capacity K is determined by the number of agents * the multiplier as determined in the configuration file. A multiplier value lower than 1 will be treated as 1, i.e. constant birth and death rates.
 
