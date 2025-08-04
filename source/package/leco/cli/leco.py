@@ -16,7 +16,12 @@ from .plots.plotting_main import plot
 @main_function
 def leco(config: dict, output_dir: str) -> None:
     print("Run leco model")
-    run_model(config, output_dir)
+    try:
+        run_model(config, output_dir)
+    except Exception as e:
+        print(f"Error running leco model: {e}")
+        print("Terminating execution of the leco model")
+        exit(1)
 
 
 def lang_classification(input_dir: str, dist_threshold: float) -> None:
@@ -82,7 +87,7 @@ Usage:
     {command} --plot-summaries <inputfile>
     {command} --plot-animation <inputfile>
     {command} --plot-3d <inputfile>
-    {command} --all -i <configfile> -o <outputpath>
+    {command} --all -i <configfile> -o <outputpath> [-d <distthreshold>]
 
 Arguments:
     -i <configfile>       Specify path to TOML format configuration file
@@ -109,7 +114,7 @@ Examples:
     {command} --plot-summaries results/run_001/population.gpkg
     {command} --plot-animation results/run_001/population.gpkg
     {command} --plot-3d results/run_001/population.gpkg
-    {command} --all -i config.toml -o results/
+    {command} --all -i config.toml -o results/ -d 0.1
 """
     arguments = docopt.docopt(usage, sys.argv[1:], version=version)
     print(f"command-line arguments: {arguments}")
@@ -163,12 +168,7 @@ Examples:
     output = create_run_dir(arguments["-o"], config) if arguments["-o"] else None
 
     # Run main leco model
-    try:
-        leco(config, output)
-    except Exception as e:
-        print(f"Error running leco model: {e}")
-        print("Terminating execution - skipping post-processing")
-        exit(1)
+    leco(config, output)
 
     # Post-processing pipeline
     if arguments["--classify-after"] or arguments["--all"]:
