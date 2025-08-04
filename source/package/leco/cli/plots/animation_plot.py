@@ -5,6 +5,7 @@ import matplotlib
 from matplotlib.animation import FuncAnimation
 from pathlib import Path
 from shapely import Polygon, box
+import ast
 
 
 def prepare_animation_data(population: gpd.GeoDataFrame) -> list[dict]:
@@ -111,37 +112,34 @@ def create_animation(
 
 
 def initialize_barrier(
-    max_coor: float,
+    x_max: float,
+    y_max: float,
     bar_x: float,
     bar_y: float,
-    bar_x_radius: float,
-    bar_y_radius: float,
 ) -> Polygon:
     """Initialize a barrier in the continuous space"""
 
-    barrier = Polygon(
-        [
-            (bar_x - bar_x_radius, bar_y - bar_y_radius),
-            (bar_x + bar_x_radius, bar_y - bar_y_radius),
-            (bar_x + bar_x_radius, bar_y + bar_y_radius),
-            (bar_x - bar_x_radius, bar_y + bar_y_radius),
-        ]
-    )
+    barrier = box(bar_x[0], bar_y[0], bar_x[1], bar_y[1])
 
     # Bounding box for valid space
-    bounds = box(0, 0, max_coor, max_coor)
+    bounds = box(0, 0, x_max, y_max)
 
     # Clip the barrier to fit inside the bounds
     barrier_clipped = barrier.intersection(bounds)
 
     # Check if clipping occurred
     if not barrier_clipped.equals(barrier):
-        print(
-            f"Warning: Barrier at ({bar_x:.2f}, {bar_y:.2f}) was clipped to fit within "
-            f"bounds [0, {max_coor}]"
-        )
+        print("Warning: Barrier at was clipped to fit within space.")
 
     return barrier_clipped
+
+
+def string_to_floatlist(string: str) -> list[float]:
+    """Changes string to a list of float values"""
+    values = ast.literal_eval(string)
+    a, b = float(values[0]), float(values[1])
+
+    return [a, b]
 
 
 def plot_animation(
@@ -163,10 +161,9 @@ def plot_animation(
     if parameters["barrier"] == "True":
         barrier = initialize_barrier(
             parameters["x_max"],
-            float(parameters["bar_x"]),
-            float(parameters["bar_y"]),
-            float(parameters["bar_x_radius"]),
-            float(parameters["bar_y_radius"]),
+            parameters["y_max"],
+            string_to_floatlist(parameters["bar_x"]),
+            string_to_floatlist(parameters["bar_y"]),
         )
 
     animation_data = prepare_animation_data(population)

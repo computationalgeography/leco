@@ -8,6 +8,7 @@ import os
 
 
 def set_birth_rate(
+    logistic_growth: bool,
     multiplier: float,
     growth_rate: float,
     birth_rate: float,
@@ -16,12 +17,12 @@ def set_birth_rate(
     N: int,
 ) -> float:
     """Calculate the birth rate based on the multiplier and growth rate"""
-    if multiplier > 1:
-        # If the multiplier is not set to 1, apply logistic growth
+    if logistic_growth:
+        # If logistic_growth is set to true, apply logistic growth
         K = init_population * multiplier
         effective_growth_rate = growth_rate * (1 - N / K)
-        birth_rate = death_rate + effective_growth_rate
-        return birth_rate
+        birth_log_rate = death_rate + effective_growth_rate
+        return birth_log_rate
     else:
         # Use the constant initalized birth rates
         return birth_rate
@@ -371,35 +372,24 @@ def initialize_coordinates(
 
 
 def initialize_barrier(
-    max_coor: float,
+    x_max: float,
+    y_max: float,
     bar_x: float,
     bar_y: float,
-    bar_x_radius: float,
-    bar_y_radius: float,
 ) -> Polygon:
     """Initialize a barrier in the continuous space"""
 
-    barrier = Polygon(
-        [
-            (bar_x - bar_x_radius, bar_y - bar_y_radius),
-            (bar_x + bar_x_radius, bar_y - bar_y_radius),
-            (bar_x + bar_x_radius, bar_y + bar_y_radius),
-            (bar_x - bar_x_radius, bar_y + bar_y_radius),
-        ]
-    )
+    barrier = box(bar_x[0], bar_y[0], bar_x[1], bar_y[1])
 
     # Bounding box for valid space
-    bounds = box(0, 0, max_coor, max_coor)
+    bounds = box(0, 0, x_max, y_max)
 
     # Clip the barrier to fit inside the bounds
     barrier_clipped = barrier.intersection(bounds)
 
     # Check if clipping occurred
     if not barrier_clipped.equals(barrier):
-        print(
-            f"Warning: Barrier at ({bar_x:.2f}, {bar_y:.2f}) was clipped to fit within "
-            f"bounds [0, {max_coor}]"
-        )
+        print("Warning: Barrier at was clipped to fit within space.")
 
     return barrier_clipped
 
@@ -483,10 +473,9 @@ def run_model(p: dict, output_run: str):
     if p["barrier"]:
         barrier = initialize_barrier(
             p["x_max"],
+            p["y_max"],
             p["bar_x"],
             p["bar_y"],
-            p["bar_x_radius"],
-            p["bar_y_radius"],
         )
 
     # Initialize population of agents
@@ -494,7 +483,7 @@ def run_model(p: dict, output_run: str):
         p["agents"],
         p["x_max"],
         p["y_max"],
-        p["init_area_radius"],
+        p["init_area_edge"],
         p["init_x"],
         p["init_y"],
         p["nr_start_languages"],
@@ -517,6 +506,7 @@ def run_model(p: dict, output_run: str):
 
         # Determine the current birh rate based on constant rates (multiplier == 1) or logistic growth (multiplier != 1)
         current_birth_rate = set_birth_rate(
+            p["logistic_growth"],
             p["multiplier"],
             p["growth_rate"],
             p["birth_rate"],
