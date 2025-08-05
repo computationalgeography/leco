@@ -1,7 +1,14 @@
 import numpy as np
 import pandas as pd
 import geopandas as gpd
-from shapely import Polygon, LineString, box  # I could also just import shapely
+from shapely import (
+    Polygon,
+    LineString,
+    get_coordinates,
+    MultiPolygon,
+    box,
+    vectorized,
+)  # I could also just import shapely
 from scipy.spatial import KDTree
 import time
 import os
@@ -179,10 +186,10 @@ def move(
     position: gpd.GeoSeries.geometry,
     barrier: Polygon | None,
     bar_impediment: float,
-    rng: np.random.default_rng,
     speed: float,
     x_max: int,
     y_max: int,
+    rng: np.random.default_rng,
 ) -> gpd.GeoSeries.geometry:
     """Move agents across a continuous space"""
 
@@ -236,9 +243,9 @@ def move(
 
 def mutate_profile(
     language_profiles: np.ndarray[int],
-    rng: np.random.default_rng,
     nr_forms: int,
     mutation_rate: float,
+    rng: np.random.default_rng,
 ) -> np.ndarray[int]:
     """Mutate language profile of agents"""
 
@@ -277,14 +284,84 @@ def nearest_neighbors(
     return neighbors
 
 
+def compute_interact_prob_neighbors(
+    agent_id: int,
+    positions: gpd.GeoDataFrame.geometry,
+    radius: float,
+    neighbors: np.ndarray[int],
+    int_partner_prob: float,
+    bar_impediment: float,
+    barrier: Polygon,
+):
+    """Compute the interaction probability for neighbors of a single agent dependent on barrier presence"""
+
+    # Get the position of the active agent
+    agent_pos = positions[agent_id]
+
+    if barrier is None:
+        # Without barrier, all neighbors have an equal probability [int_partner_prob] to interact
+        return np.repeat(int_partner_prob, len(neighbors))
+
+    # Create a Polygon area of the interaction radius
+    int_circle = agent_pos.buffer(radius)
+    # Find the area that is intersected by the barrier
+    impeded_area = int_circle.intersection(barrier)
+
+    if impeded_area == 0:
+        # If the barrier is not intersecting with the interaction radius, all neighbors have an equal probability of int_partner_prob
+        return np.repeat(int_partner_prob, len(neighbors))
+
+    # The neighbors on or behind the barrier have a lower probability to interact, which is proportional to the bar_impediment
+    barrier_prob = int_partner_prob * (1.0 - bar_impediment)
+
+    if impeded_area.contains(agent_pos):
+        # If an agent is positioned on a barrier, interaction with all of its neighbors has a lower probability
+        return np.repeat(barrier_prob, len(neighbors))
+
+    # Select the area without barrier
+    int_area_withoutbar = int_circle.difference(barrier)
+    if int_area_withoutbar.is_empty:
+        # Barrier completely covers the interaction area
+        valid_int_area = None
+    elif isinstance(int_area_withoutbar, MultiPolygon):
+        # Barrier has split the interaction area in two, keep the area where the agent resides
+        valid_int_area = next(
+            (geom for geom in int_area_withoutbar.geoms if geom.contains(agent_pos)),
+        )
+    elif isinstance(int_area_withoutbar, Polygon):
+        # Barrier has cut off a side of the area, keep the remaining area
+        valid_int_area = int_area_withoutbar
+
+    # Add for every neighbor the probability dependent on whether they are located in the valid_int_area or not
+    nb_positions = get_coordinates(
+        positions[neighbors]
+    )  # Get the positions of the neighbors
+
+    # Check whether the neighbors reside on the reachable area
+    mask = vectorized.contains(valid_int_area, nb_positions[:, 0], nb_positions[:, 1])
+
+    # If they reside on the reachable area, assign the high probability, if not the low probability
+    int_probs = np.where(mask, int_partner_prob, barrier_prob)
+
+    return int_probs
+
+
 def interact(
     language_profiles: np.ndarray[int],
-    neighbors_list: list[np.ndarray[int]],
-    rng: np.random.default_rng,
     int_partner_prob: float,
     diffusion_rate: float,
+    positions: gpd.GeoDataFrame.geometry,
+    int_radius: float,
+    bar_impediment: float,
+    barrier: bool,
+    rng: np.random.default_rng,
 ) -> np.ndarray[int]:
     """Interaction between agents whereby linguistic diffusion occurs"""
+
+    # Get neighbors for all agents within a radius of int_radius
+    neighbors_list = nearest_neighbors(
+        positions.get_coordinates().to_numpy(), int_radius
+    )
 
     # Get the current number of agents and the number of meanings
     nr_agents, nr_meanings = language_profiles.shape
@@ -310,12 +387,26 @@ def interact(
         if len(neighbors) == 0:
             continue
 
+        # Compute the probabilities for an agent to interact with its neighbours, based on the presence of a barrier
+        int_probs_nbs = compute_interact_prob_neighbors(
+            agent_idx,
+            positions,
+            int_radius,
+            neighbors,
+            int_partner_prob,
+            bar_impediment,
+            barrier,
+        )
         # Convert neighbor list to an array to make use of the masks
         neighbors = np.array(neighbors)
 
+        if len(neighbors) != len(int_probs_nbs):
+            print(
+                "Error! Number of neighbors is not equal to the number of neighbor probabilities!!"
+            )
         # Based on a probability, the agent interacts with 'int_partner_prob' proportion of their neighbors
         interaction_mask = (
-            interaction_probs[agent_idx, : len(neighbors)] < int_partner_prob
+            interaction_probs[agent_idx, : len(neighbors)] < int_probs_nbs
         )
         # Select the interaction partners
         interacting_neighbors = neighbors[interaction_mask]
@@ -340,11 +431,11 @@ def interact(
 
 
 def initialize_coordinates(
-    rng: np.random.default_rng,
     max_value: float,
     init_radius: float | bool,
     init_coord: float | bool,
     nr_agents: int,
+    rng: np.random.default_rng,
 ) -> np.ndarray[float]:
     """Randomly initialize coordinates for all agents within the specified range"""
 
@@ -395,7 +486,9 @@ def initialize_barrier(
 
 
 def initialize_language_profile(
-    rng: np.random.default_rng, nr_meanings: int, nr_forms: int
+    nr_meanings: int,
+    nr_forms: int,
+    rng: np.random.default_rng,
 ) -> np.ndarray[int]:
     """Randomly initialize a language profile with length = nr_meaning for an agent"""
     return rng.integers(0, nr_forms, nr_meanings)
@@ -424,8 +517,8 @@ def initialize_population(
     ids = list(range(1, nr_agents + 1))  # ids from 1 to number of agents
 
     # Initial spatial distribution of the agents
-    x = initialize_coordinates(rng, x_max, init_radius, init_x, nr_agents)
-    y = initialize_coordinates(rng, y_max, init_radius, init_y, nr_agents)
+    x = initialize_coordinates(x_max, init_radius, init_x, nr_agents, rng)
+    y = initialize_coordinates(y_max, init_radius, init_y, nr_agents, rng)
 
     # Initial language profile, represented by a string of integers
     # For each agent:
@@ -434,7 +527,7 @@ def initialize_population(
 
     # Create the original language profiles, number is equal to nr_languages
     start_profiles = [
-        initialize_language_profile(rng, nr_meanings, nr_forms)
+        initialize_language_profile(nr_meanings, nr_forms, rng)
         for _ in range(nr_languages)
     ]
 
@@ -528,31 +621,30 @@ def run_model(p: dict, output_run: str):
             population.geometry,
             barrier,
             p["bar_impediment"],
-            rng,
             p["speed"],
             p["x_max"],
             p["y_max"],
+            rng,
         )
 
         # Mutate language profiles
         population["language_profile"] = mutate_profile(
             np.stack(population["language_profile"]),
-            rng,
             p["forms"],
             p["mutation_rate"],
+            rng,
         )
 
-        # Interact with nearby neighbors
-        nbs = nearest_neighbors(
-            population.get_coordinates().to_numpy(), p["int_radius"]
-        )
-
+        # Interaction between neary agents whereby linguistic features can be adopted
         population["language_profile"] = interact(
             np.stack(population["language_profile"]),
-            nbs,
-            rng,
             p["int_partner_prob"],
             p["diffusion_rate"],
+            population.geometry,
+            p["int_radius"],
+            p["bar_impediment"],
+            barrier,
+            rng,
         )
 
         # Save output to geoparquet file

@@ -4,6 +4,7 @@ from datetime import datetime
 import docopt
 import tomllib
 from pathlib import Path
+import traceback
 
 from ..version import __version__ as version
 from .main import main_function
@@ -20,6 +21,7 @@ def leco(config: dict, output_dir: str) -> None:
         run_model(config, output_dir)
     except Exception as e:
         print(f"Error running leco model: {e}")
+        traceback.print_exc()
         print("Terminating execution of the leco model")
         exit(1)
 
