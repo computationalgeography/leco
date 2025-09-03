@@ -3,7 +3,10 @@ import matplotlib.pyplot as plt
 import matplotlib
 
 
-def plot_3d_fig(input_file: str, cmap: matplotlib.colors.ListedColormap) -> None:
+def plot_3d_fig(
+    input_file: str,
+    cmap: matplotlib.colors.ListedColormap,
+) -> None:
     """Create a 3D interactive plot of the leco model output"""
     # Read in the population data across all timesteps
     population = gpd.read_file(input_file)
@@ -15,7 +18,7 @@ def plot_3d_fig(input_file: str, cmap: matplotlib.colors.ListedColormap) -> None
         population.geometry.x,
         population.geometry.y,
         population.timestep,
-        c=population.language,
+        c=population["language"],
         cmap=cmap,
         s=1,
     )

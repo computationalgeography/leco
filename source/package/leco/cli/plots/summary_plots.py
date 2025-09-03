@@ -48,7 +48,11 @@ def calculate_tick_intervals(
     return sorted(list(set(ticks)))
 
 
-def language_number_plot(output_path: str, languagenumber: list, nr_steps: int) -> None:
+def language_number_plot(
+    output_path: str,
+    languagenumber: list,
+    nr_steps: int,
+) -> None:
     """Plot number of languages over time"""
 
     plt.plot(languagenumber, marker="o")
@@ -65,6 +69,8 @@ def language_number_plot(output_path: str, languagenumber: list, nr_steps: int) 
 
     plt.yticks(y_ticks, [str(i) for i in y_ticks])
     plt.title("Number of Languages Over Time")
+
+    # Save the plot
     plt.savefig(os.path.join(output_path, "Number_of_Languages.pdf"))
     plt.close()
 
@@ -73,6 +79,7 @@ def language_counts_plot(
     language_counts: gpd.GeoDataFrame,
     output_path: str,
     cmap: matplotlib.colors.ListedColormap,
+    lang_to_index: dict[int, int],
 ) -> None:
     """Plot number of agents speaking a language over time"""
 
@@ -80,13 +87,16 @@ def language_counts_plot(
     sorted_cols = language_counts.iloc[0].sort_values(ascending=False).index
     language_counts = language_counts[sorted_cols]
 
+    # Create color list that matches sorted language columns
+    colors = [cmap.colors[lang_to_index[lang]] for lang in language_counts.columns]
+
     fig, ax = plt.subplots(figsize=(12, 6))
 
     # Create a stacked area plot for the number of agents per language over time
     language_counts.plot.area(
         ax=ax,
         stacked=True,
-        colormap=cmap,
+        color=colors,
         linewidth=0,
     )
 
@@ -101,7 +111,11 @@ def language_counts_plot(
     plt.close()
 
 
-def plot_summaries(input_file: str, cmap: matplotlib.colors.ListedColormap) -> None:
+def plot_summaries(
+    input_file: str,
+    cmap: matplotlib.colors.ListedColormap,
+    lang_to_index: dict[int, int],
+) -> None:
     """Create summarizing plots of the leco model output"""
 
     # Read in the population data across all timesteps
@@ -118,4 +132,4 @@ def plot_summaries(input_file: str, cmap: matplotlib.colors.ListedColormap) -> N
     language_counts = (
         population.groupby(["timestep", "language"])["id"].count().unstack(fill_value=0)
     )
-    language_counts_plot(language_counts, output_path, cmap)
+    language_counts_plot(language_counts, output_path, cmap, lang_to_index)

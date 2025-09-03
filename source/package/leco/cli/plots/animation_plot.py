@@ -26,7 +26,7 @@ def create_scatterframe(
     x_max: int,
     y_max: int,
     barrier: Polygon | None,
-) -> None:
+) -> list:
     """Create a scatter plot for each frame of the animation"""
     timestep = data["timestep"]
     population = data["population"]
@@ -48,7 +48,7 @@ def create_scatterframe(
     scatter = ax.scatter(
         population.geometry.x,
         population.geometry.y,
-        c=population.language,
+        c=population["language"],
         cmap=cmap,
         vmin=0,
         vmax=nr_languages - 1,
@@ -82,6 +82,7 @@ def create_animation(
     all_languages = set()
     for data in animation_data:
         all_languages.update(data["population"]["language"])
+
     unique_languages = sorted(list(all_languages))
     nr_languages = len(unique_languages)
 
@@ -143,7 +144,9 @@ def string_to_floatlist(string: str) -> list[float]:
 
 
 def plot_animation(
-    input_file: str, parameters: dict, cmap: matplotlib.colors.ListedColormap
+    input_file: str,
+    parameters: dict,
+    cmap: matplotlib.colors.ListedColormap,
 ) -> None:
     """Create an animation of the leco model output"""
     # Read in the population data across all timesteps

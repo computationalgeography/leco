@@ -9,58 +9,51 @@ from .threed_interactive_plot import plot_3d_fig
 
 
 def create_colormap(
-    nr_languages: int, rng: np.random.default_rng
-) -> matplotlib.colors.ListedColormap:
-    """Create a colormap for the languages"""
-    nr_colors = 20  # number of colors to extract from each of the base_cmaps below
+    languages: gpd.GeoSeries,
+) -> tuple[matplotlib.colors.ListedColormap, dict[int, int]]:
+    nr_colors = 20
     base_cmaps = ["Greys", "Purples", "Reds", "Blues", "Oranges", "Greens", "RdPu"]
 
-    # Sample from linspace 0.2 to 0.8 to avoid having overly dark and light shades
     raw_colors = np.concatenate(
         [plt.get_cmap(name)(np.linspace(0.2, 0.8, nr_colors)) for name in base_cmaps]
     )
 
-    nr_unique_colors = len(raw_colors)
-    rng.shuffle(raw_colors)  # Shuffle colors
+    # Create a deterministic assignment based on language names
+    language_ids = sorted(languages.unique())
 
-    if nr_languages <= nr_unique_colors:
-        selected_colors = raw_colors[0:nr_languages]
-    else:
-        # If not enough unique colors, repeat some colors
-        print(
-            f"Not enough colors ({nr_unique_colors}) for {nr_languages} languages: some colors will be used multiple times."
-        )
-        # Evenly distribute reused colors to avoid repetition at the same time
-        selected_colors = []
-        for i in range(nr_languages):
-            color_idx = i % nr_unique_colors
-            selected_colors.append(raw_colors[color_idx])
-        selected_colors = np.array(selected_colors)
+    # Create a hash-based assignment for consistent colors
+    language_colors = {}
+    for i, language in enumerate(language_ids):
+        # Use hash of language name to get consistent color index
+        hash_val = hash(str(language)) % len(raw_colors)
+        language_colors[language] = raw_colors[hash_val]
 
-    return matplotlib.colors.ListedColormap(selected_colors)  # Create a colormap
+    # Create colormap from the assigned colors
+    selected_colors = [language_colors[lang] for lang in language_ids]
+    cmap = matplotlib.colors.ListedColormap(selected_colors)
+
+    # Create a mapping from language to index for plotting
+    lang_to_index = {lang: idx for idx, lang in enumerate(language_ids)}
+
+    return cmap, lang_to_index  # , language_colors  # Return both for later use
 
 
 def plot(
     input_file: str,
-    parameters: dict | None,
+    parameters: dict,
     summaries: bool,
     animation: bool,
     interactive: bool,
 ) -> None:
     """Create plots of the leco model output"""
 
-    # Initialize seed
-    if parameters is not None:
-        rng = np.random.default_rng(int(parameters["seed"]))
-    else:
-        rng = np.random.default_rng(42)
-
     population = gpd.read_file(input_file)
-    cmap = create_colormap(population.language.nunique(), rng)
+
+    cmap, lang_to_index = create_colormap(population.language)
 
     if summaries:
         print("Create summarizing plots of the leco model output")
-        plot_summaries(input_file, cmap)
+        plot_summaries(input_file, cmap, lang_to_index)
 
     if animation:
         print("Create animation of the leco model output")
