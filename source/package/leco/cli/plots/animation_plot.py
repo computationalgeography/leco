@@ -4,8 +4,9 @@ import matplotlib.pyplot as plt
 import matplotlib
 from matplotlib.animation import FuncAnimation
 from pathlib import Path
-from shapely import Polygon, box
+from shapely import Polygon
 import ast
+from ..model_initialization import initialize_barrier
 
 
 def prepare_animation_data(population: gpd.GeoDataFrame) -> list[dict]:
@@ -29,6 +30,9 @@ def create_scatterframe(
 ) -> list:
     """Create a scatter plot for each frame of the animation"""
     timestep = data["timestep"]
+    timestep = (
+        timestep * 20
+    )  # Scale to represent years (assuming each timestep is 20 years)
     population = data["population"]
 
     ax.clear()
@@ -58,9 +62,10 @@ def create_scatterframe(
 
     ax.set_xlim(0, x_max)
     ax.set_ylim(0, y_max)
-    ax.set_xlabel("X Position")
-    ax.set_ylabel("Y Position")
-    ax.set_title(f"Timestep {timestep}")
+    ax.set_xlabel("X Position (km)", size=13)
+    ax.set_ylabel("Y Position (km)", size=13)
+    ax.tick_params(axis="both", labelsize=10)
+    ax.set_title(f"Year {timestep}", size=16)
 
     return [scatter]
 
@@ -99,7 +104,7 @@ def create_animation(
             barrier,
         ),  # Arguments for the frame function
         frames=animation_data,  # Pass the data for each frame to the function
-        interval=500,  # The number of milliseconds between frames
+        interval=50,  # The number of milliseconds between frames, only for python environments
         blit=False,
         repeat=True,  # Repeat the animation
     )
@@ -107,32 +112,9 @@ def create_animation(
     # Save the animation as a GIF file
     gif_path = os.path.join(output_path, filename)
     print(gif_path)
-    anim.save(gif_path, writer="pillow", fps=2)
+    anim.save(gif_path, writer="pillow", fps=4)  # fps is frames per second
     plt.close(fig)
     print(f"Animation saved: {gif_path}")
-
-
-def initialize_barrier(
-    x_max: float,
-    y_max: float,
-    bar_x: float,
-    bar_y: float,
-) -> Polygon:
-    """Initialize a barrier in the continuous space"""
-
-    barrier = box(bar_x[0], bar_y[0], bar_x[1], bar_y[1])
-
-    # Bounding box for valid space
-    bounds = box(0, 0, x_max, y_max)
-
-    # Clip the barrier to fit inside the bounds
-    barrier_clipped = barrier.intersection(bounds)
-
-    # Check if clipping occurred
-    if not barrier_clipped.equals(barrier):
-        print("Warning: Barrier at was clipped to fit within space.")
-
-    return barrier_clipped
 
 
 def string_to_floatlist(string: str) -> list[float]:

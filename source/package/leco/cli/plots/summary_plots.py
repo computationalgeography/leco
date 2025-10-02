@@ -50,10 +50,11 @@ def calculate_tick_intervals(
 
 def language_number_plot(
     output_path: str,
-    languagenumber: list,
-    nr_steps: int,
+    languagenumber: list[int],
 ) -> None:
     """Plot number of languages over time"""
+
+    nr_steps = len(languagenumber)
 
     plt.plot(languagenumber, marker="o")
     plt.xlabel("Timestep")
@@ -87,10 +88,13 @@ def language_counts_plot(
     sorted_cols = language_counts.iloc[0].sort_values(ascending=False).index
     language_counts = language_counts[sorted_cols]
 
+    # Scale the index to represent years for each timstep (assuming each timestep is 20 years)
+    language_counts.index = language_counts.index * 20
+
     # Create color list that matches sorted language columns
     colors = [cmap.colors[lang_to_index[lang]] for lang in language_counts.columns]
 
-    fig, ax = plt.subplots(figsize=(12, 6))
+    fig, ax = plt.subplots(figsize=(10, 6))
 
     # Create a stacked area plot for the number of agents per language over time
     language_counts.plot.area(
@@ -102,19 +106,20 @@ def language_counts_plot(
 
     ax.get_legend().remove()  # Remove the legend for clarity
     ax.set_xlim(language_counts.index.min(), language_counts.index.max())
-    ax.set_xlabel("Timestep")
-    ax.set_ylabel("Number of Agents")
-    ax.set_title("Number of Agents per Language over Time")
+    ax.set_xlabel("Year", size=18)
+    ax.set_ylabel("Number of Agents", size=18)
+    ax.tick_params(axis="both", labelsize=14)
+    ax.set_title("Number of Agents per Language over Time", size=22)
 
     # Save the plot
-    plt.savefig(os.path.join(output_path, "Agents_per_Language.pdf"))
+    plt.savefig(os.path.join(output_path, "Agents_per_Language.jpeg"), dpi=300)
     plt.close()
 
 
 def plot_summaries(
     input_file: str,
-    cmap: matplotlib.colors.ListedColormap,
-    lang_to_index: dict[int, int],
+    cmap: matplotlib.colors.ListedColormap | None,
+    lang_to_index: dict[int, int] | None,
 ) -> None:
     """Create summarizing plots of the leco model output"""
 
@@ -125,8 +130,7 @@ def plot_summaries(
 
     # Create a figure showing the number of languages over time
     languagenumber = population.groupby("timestep")["language"].nunique().tolist()
-    nr_steps = population["timestep"].max()
-    language_number_plot(output_path, languagenumber, nr_steps)
+    language_number_plot(output_path, languagenumber)
 
     # Create a figure showing the number of agents speaking a language over time
     language_counts = (

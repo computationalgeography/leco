@@ -1,8 +1,7 @@
 import numpy as np
 import pandas as pd
 import geopandas as gpd
-from sklearn.cluster import AgglomerativeClustering, DBSCAN
-from sklearn.metrics import pairwise_distances
+from sklearn.cluster import AgglomerativeClustering
 from pathlib import Path
 
 # import re
@@ -52,43 +51,6 @@ def language_classification(
     return categories
 
 
-def dbscan_classification(
-    language_profiles: np.ndarray[int],
-    distance_threshold: float,
-) -> np.ndarray[int]:
-    """Group language profiles into languages based on distance threshold following density-based clustering"""
-
-    dist = pairwise_distances(language_profiles, metric="hamming")
-    print(dist)
-    dbscan = DBSCAN(eps=0.2, min_samples=1, metric="precomputed")
-    labels = dbscan.fit_predict(dist)
-    print(labels)
-    """     clustering = DBSCAN(eps=distance_threshold, min_samples=2, metric="hamming")
-
-    categories = clustering.fit(language_profiles)
-    print(categories) """
-
-    return labels
-
-
-def thresholded_clustering(
-    language_profiles: np.ndarray, threshold: float
-) -> np.ndarray:
-    n = language_profiles.shape[0]
-    dist = pairwise_distances(language_profiles, metric="hamming")
-    labels = -np.ones(n, dtype=int)
-    cluster_id = 0
-
-    for i in range(n):
-        if labels[i] == -1:
-            # Find all unassigned points within threshold to point i
-            similar = (dist[i] <= threshold) & (labels == -1)
-            labels[similar] = cluster_id
-            cluster_id += 1
-
-    return labels
-
-
 def run_classification(input_path: str, dist_threshold: float) -> None:
     """Run the LECo model of language evolution"""
 
@@ -96,7 +58,7 @@ def run_classification(input_path: str, dist_threshold: float) -> None:
     population = read_geoparquet(input_path)
 
     # Cluster the language profiles into languages based on the distance threshold
-    population["language"] = thresholded_clustering(
+    population["language"] = language_classification(
         np.stack(population["language_profile"]), dist_threshold
     )
 

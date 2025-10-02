@@ -6,10 +6,12 @@ import matplotlib
 from .summary_plots import plot_summaries
 from .animation_plot import plot_animation
 from .threed_interactive_plot import plot_3d_fig
+# from .sensitivity_plots import sens_plot
 
 
 def create_colormap(
     languages: gpd.GeoSeries,
+    rng: np.random.default_rng = np.random.default_rng(seed=42),
 ) -> tuple[matplotlib.colors.ListedColormap, dict[int, int]]:
     nr_colors = 20
     base_cmaps = ["Greys", "Purples", "Reds", "Blues", "Oranges", "Greens", "RdPu"]
@@ -18,6 +20,7 @@ def create_colormap(
         [plt.get_cmap(name)(np.linspace(0.2, 0.8, nr_colors)) for name in base_cmaps]
     )
 
+    rng.shuffle(raw_colors)
     # Create a deterministic assignment based on language names
     language_ids = sorted(languages.unique())
 
@@ -39,7 +42,7 @@ def create_colormap(
 
 
 def plot(
-    input_file: str,
+    input_file: list[str] | str,
     parameters: dict,
     summaries: bool,
     animation: bool,
@@ -62,3 +65,15 @@ def plot(
     if interactive:
         print("Create 3D interactive plot of the leco model output")
         plot_3d_fig(input_file, cmap)
+
+
+## Work in progress
+""" def plot_sensitivity(
+    null: list[str] | None,
+    point: list[str] | None,
+    barrier: list[str] | None,
+) -> None:
+    "Create summarizing plots for multiple sensitivity runs"
+
+    print("Create sensitivity plots of the leco model output")
+    sens_plot(null, point, barrier) """
