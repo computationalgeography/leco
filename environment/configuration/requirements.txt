@@ -9,4 +9,4 @@ geopandas
 shapely
 datetime
 matplotlib
-jsonschema
+pyarrow
