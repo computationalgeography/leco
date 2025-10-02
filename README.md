@@ -63,26 +63,26 @@ The simulation requires a TOML configuration file to set up the parameters to ru
 
 ```toml
 # Initialization settings
-agents = 100
-steps = 100
+agents = 5
+steps = 200
 seed = 42
-nr_start_languages = 40
-init_area_edge = 20 # Area edge (same for x and y) or false
-init_x = 500 # Coordinate value or false
-init_y = 500 # Coordinate value or false
+nr_start_languages = 5
+init_subset_area = true
+init_x = [480,520]
+init_y = [930,970]
 
 # Spatial boundaries
 x_max = 1000
 y_max = 1000
 
-#[barrier]
-barrier = true
-bar_x = [180, 220]
+# Barrier
+barrier = false
+bar_x = [250, 450]
 bar_y = [0, 1000]
-bar_impediment = 0.5
+bar_impermeability = 0.6
 
 # Agent attributes
-speed = 10
+speed = 20
 meanings = 100
 forms = 120
 mutation_rate = 0.001
@@ -90,25 +90,25 @@ mutation_rate = 0.001
 # Population dynamics
 death_rate = 0.01
 birth_rate = 0.01
-logistic_growth = false
-multiplier = 1
-growth_rate = 0.131
+logistic_growth = true
+multiplier = 50
+end_growth_time = 100
 
 # Interaction settings
-int_radius = 5
+int_radius = 20
 int_partner_prob = 0.8
 diffusion_rate = 0.01
 ```
 
-Initalization of the agents positions can be defined by the init_area_edge, init_x and init_y. The former specifies the size (n x n) of the initialization area, while the latter two specify the start coordinates. All three can be false in which case, the values are chosen randomly between 0 and x_max or y_max.
+Different scenario's can be chosen at initialization of the model. When init_subset_area is set to false, initial positions of the agents are randomly distributed across the entire space. Otherwise initial positions are confined to the subset area, for which the x and y ranges can be specified with init_x and init_y. A user can additionally specify the number of initial languages and agents. In case this value is not the same, the start languages are evenly distributed across the initial agents.
 
-A spatial barrier can be specified by setting the coordinates for both x and y values. The bar_impediment parameter determines the degree of hinder as opposed by the barrier, ranging from 0 to 1 whereby a value of 0 means no hinder and a value of 1 complete blockage. This is translated to the model as the probability of an agent to pass the barrier. When an agent at first try is not allowed to pass the barrier, it will move in a direction away from the barrier.
+A spatial barrier can be specified by setting the ranges for both x and y values. The bar_impermeability parameter determines the degree of hinder as opposed by the barrier, ranging from 0 to 1 whereby a value of 0 means no hinder and a value of 1 complete blockage. The impermeability is used to proportionally decrease the probability of an agent to move and interact across the barrier. When an agent at first try is not allowed to pass the barrier, it will remain at it's previous position.
 
-Population dynamics can follow constant birth and death rates as determined in the configuration file by setting the logistic_growth boolean to false. If logistic_growth is set to true, the number of agents will increase following a logistic growth curve with a constant death rate as configured. The carrying capacity K is determined by the number of agents * the multiplier as determined in the configuration file.
+Population dynamics can follow constant birth and death rates as determined in the configuration file by setting the logistic_growth boolean to false. If logistic_growth is set to true, the number of agents will increase following a logistic growth curve with a constant death rate as configured. The carrying capacity K is determined by the number of agents * the multiplier as specified in the configuration file. Furthermore, the user can specify the duration of the logistic growth from the first time step untill the end_growth_time step.
 
 ## Post-processing options
 
-The `leco` package provides several options of post-processing the data. The language profiles can be classified into languages with the classify option:
+The `leco` package provides several options of post-processing the data. The language profiles of the agents can be classified into languages with the classify option:
 
 ```bash
 cd leco
@@ -124,7 +124,7 @@ cd leco
 PYTHONPATH=source/package python source/script/leco_model.py --classify-after -i path/config.toml -o outputpath -d 0.2
 ```
 
-Other post-processing options regard creating plots of the output data. At the moment, there are two scripts. The first script creates summary plots of the output data, including the number of languages over time and the number of agents per language over time, both saved as .pdf files.
+Other post-processing options regard creating plots of the output data. The first script creates summary plots of the output data, including the number of languages over time and the number of agents per language over time, both saved as .pdf files.
 
 ```bash
 cd leco

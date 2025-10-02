@@ -5,13 +5,15 @@ import docopt
 import tomllib
 from pathlib import Path
 import traceback
+import glob
 
 from ..version import __version__ as version
 from .main import main_function
 from .model import run_model
 from .language_classification import run_classification
+from .phylogeny_largeclustering_ETE import create_phylo
 
-from .plots.plotting_main import plot
+from .plots.plotting_main import plot, plot_sensitivity
 
 
 @main_function
@@ -41,15 +43,18 @@ def load_config(config_file):
         exit(1)
 
 
-def create_run_dir(outputpath: str, params: dict) -> str:
+def create_run_dir(outputpath: str, params: dict, suffix: str | None = None) -> str:
     """Create output directory for specific run and store parameter values in a text file"""
     os.makedirs(
         outputpath, exist_ok=True
     )  # Create the directory if it does not exist yet
 
     # Create a subdirectory for each run named after date and time
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_dir_run = os.path.join(outputpath, f"results_{timestamp}")
+    timestamp = datetime.now().strftime("%Y%m%d")  # _%H%M%S")
+    output_dir_run = os.path.join(
+        outputpath,
+        f"results_{timestamp}_{suffix}" if suffix else f"results_{timestamp}",
+    )
     os.makedirs(output_dir_run, exist_ok=True)
 
     # Write parameter values to text file and store in the ouput directory of the specific run
@@ -76,55 +81,83 @@ def open_parameters(output_path: str) -> dict:
     return params
 
 
+def run_sensitivity_analysis(
+    base_config: dict,
+    param_name: str,
+    values: list,
+    output_base: str,
+    dist_threshold: float,
+):
+    """Run the leco model for a range of values for a given parameter and classify the languages."""
+    for val in values:
+        print(f"Running sensitivity analysis: {param_name}={val}")
+        config = base_config.copy()
+        config[param_name] = val  # or deeper nesting depending on your TOML structure
+        output_path = create_run_dir(output_base, config, suffix=f"{param_name}_{val}")
+        leco(config, output_path)
+
+        # Classify languages after each run
+        lang_classification(output_path, dist_threshold)
+
+
 def main() -> None:
     command = os.path.basename(sys.argv[0])
     usage = f"""\
 Run leco model
 
 Usage:
-    {command} -i <configfile> -o <outputpath> [-g <growthratefile>]
-    {command} --classify <outputpath/resultsdir> [-d <distthreshold>]
-    {command} --classify-after -i <configfile> -o <outputpath> [-g <growthratefile>] [-d <distthreshold>]
-    {command} --plot <inputfile>
-    {command} --plot-summaries <inputfile>
-    {command} --plot-animation <inputfile>
-    {command} --plot-3d <inputfile>
-    {command} --all -i <configfile> -o <outputpath> [-d <distthreshold>]
-
-Arguments:
-    -i <configfile>       Specify path to TOML format configuration file
-    -o <outputpath>       Specify path to output directory (does not have to exist yet)
-    -g <growthratefile>   Specify path to file that contains growth rate per timestep
-    -d <distthreshold>    Specify distance threshold for language classification (default: 0.2)
+    {command} --classify=<resultsdir>
+    {command} --phylo=<gpkgfile>
+    {command} --plot=<gpkgfile>
+    {command} --plot-summaries=<gpkgfile>
+    {command} --plot-animation=<gpkgfile>
+    {command} --plot-3d=<gpkgfile>
+    {command} --sensruns -i <configfile> -o <outputdir> -p <param> -v <values> [-d <distthreshold>]
+    {command} --sensplot [--null=<pathpattern>] [--point=<pathpattern>] [--barrier=<pathpattern>]
+    {command} -i <configfile> [-o <outputdir>] [--classify-after] [--all] [-d <distthreshold>]
 
 Options:
-    -h --help                                               Show this screen and exit
-    --version                                               Show version and exit
-    --classify <outputpath/resultsdir>                      Run language classification on existing leco output
-    --classify-after                                        Run language classification directly after running leco model
-    --plot <outputpath/resultsdir/df.gpkg>                  Creates plots of the leco model output: summary, animated and 3D interactive plots
-    --plot-summaries <outputpath/resultsdir/df.gpkg>        Create summarizing plots of the leco model output
-    --plot-animation <outputpath/resultsdir/df.gpkg>        Create animation of the leco model output
-    --plot-3d <outputpath/resultsdir/df.gpkg>               Create 3D interactive plot of the leco model output
-    --all                                                   Run leco model, language classification and create plots in one go
+  -h --help                                      Show this screen and exit.
+  --version                                      Show version and exit.
+  -i <configfile>                                Path to the configuration TOML file.
+  -o <outputdir>                                 Output directory.
+  -d <distthreshold>                             Distance threshold [default: 0.3].
+  --classify=<resultsdir>                        Run language classification on existing leco output.
+  --classify-after                               Run language classification after leco model.
+  --phylo=<gpkgfile>                             Create phylogeny of languages from a .gpkg file.
+  --plot=<gpkgfile>                              Create all plots from a .gpkg file.
+  --plot-summaries=<gpkgfile>                    Create summary plots from leco output.
+  --plot-animation=<gpkgfile>                    Create animation from leco output.
+  --plot-3d=<gpkgfile>                           Create interactive 3D plot from leco output.
+  --all                                          Run full post-processing pipeline after leco.
+  --sensruns                                     Run sensitivity analysis.
+  -p <param>                                     Parameter name to vary during sensitivity runs.
+  -v <values>                                    Comma-separated values for sensitivity parameter.
+  --sensplot                                     Create summary plots for multiple sensitivity runs given a glob pattern to match directories.
+  --null=<pathpattern>                            Glob pattern to match directories for null scenario sensitivity runs.
+  --point=<pathpattern>                           Glob pattern to match directories for point scenario sensitivity runs.
+  --barrier=<pathpattern>                         Glob pattern to match directories for barrier scenario sensitivity runs.
 
 Examples:
     {command} -i config.toml -o results/
     {command} --classify results/run_001/ -d 0.1
     {command} --classify-after -i config.toml -o results/ -d 0.1
+    {command} --phylo results/run_001/population.gkpg
     {command} --plot results/run_001/population.gpkg
     {command} --plot-summaries results/run_001/population.gpkg
     {command} --plot-animation results/run_001/population.gpkg
     {command} --plot-3d results/run_001/population.gpkg
-    {command} --all -i config.toml -o results/ -d 0.1
+    {command} --all -i config.toml -o results/ -d 0.3
+    {command} --sensruns -i config.toml -o results/ -p seed -v 1,2,3,4,5
+    {command} --sensplot --null "results/sensruns_output*/population.gpkg"
 """
     arguments = docopt.docopt(usage, sys.argv[1:], version=version)
-    print(f"command-line arguments: {arguments}")
+    print(f"Arguments parsed: {arguments}")
 
     # Helper functions
     def get_dist_threshold() -> float:
         """Get distance threshold from command line arguments or return default value"""
-        return float(arguments["-d"]) if arguments["-d"] else 0.2
+        return float(arguments["-d"]) if arguments["-d"] else 0.3
 
     def get_param_file(input_file: str) -> str:
         """Get parameter file from command line arguments or return None"""
@@ -132,13 +165,27 @@ Examples:
         return open_parameters(Path(input_file).parent)
         # return None
 
+    def get_gpkg_files(pattern: str) -> list[str]:
+        """Expand a glob pattern to a list of .gpkg files across directories."""
+        matched_files = []
+        for path in glob.glob(pattern):
+            matched_files.extend(str(f) for f in Path(path).rglob("*.gpkg"))
+        if not matched_files:
+            print(f"No .gpkg files found for pattern: {pattern}")
+        return matched_files
+
     # Command dispatch table of commands that don't require the leco model to run
     commands = {
         "--classify": lambda: lang_classification(
             arguments["--classify"], get_dist_threshold()
         ),
+        "--phylo": lambda: create_phylo(arguments["--phylo"]),
         "--plot-summaries": lambda: plot(
-            arguments["--plot-summaries"], None, True, False, False
+            arguments["--plot-summaries"],
+            None,
+            True,
+            False,
+            False,
         ),
         "--plot-animation": lambda: plot(
             arguments["--plot-animation"],
@@ -151,6 +198,11 @@ Examples:
         "--plot": lambda: plot(
             arguments["--plot"], get_param_file(arguments["--plot"]), True, True, True
         ),
+        "--sensplot": lambda: plot_sensitivity(
+            get_gpkg_files(arguments["--null"]),
+            None,  # get_gpkg_files(arguments["--point"]),
+            get_gpkg_files(arguments["--barrier"]),
+        ),
     }
 
     # Execute single commands
@@ -158,7 +210,20 @@ Examples:
         if arguments[cmd]:
             return func()
 
-    # Handle main workflow (leco model run and therefore a config file is required)
+    # Handle sensitivity analysis
+    if arguments["--sensruns"]:
+        config = load_config(arguments["-i"])
+        if not arguments["-v"]:
+            return print("Please provide values -v with comma-separated list.")
+        param = arguments["-p"]
+        values = [int(v) for v in arguments["-v"].split(",")]
+        output_base = arguments["-o"] if arguments["-o"] else "sensruns_output"
+        print(output_base)
+        return run_sensitivity_analysis(
+            config, param, values, output_base, get_dist_threshold()
+        )
+
+        # Handle main workflow (leco model run and therefore a config file is required)
     if not arguments["-i"]:
         return print(
             "Please provide a configuration file in TOML format. See --help for usage."
@@ -166,6 +231,7 @@ Examples:
 
     # Load the configuration file
     config = load_config(arguments["-i"])
+
     # Create a subdirectory for the specific run in the output path and store the parameter values
     output = create_run_dir(arguments["-o"], config) if arguments["-o"] else None
 
@@ -178,6 +244,7 @@ Examples:
         lang_classification(output, get_dist_threshold())
 
     if arguments["--all"]:
+        create_phylo(os.path.join(output, "population.gpkg"))
         plot(
             os.path.join(output, "population.gpkg"),
             open_parameters(output),
