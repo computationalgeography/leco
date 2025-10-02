@@ -11,9 +11,9 @@ from ..version import __version__ as version
 from .main import main_function
 from .model import run_model
 from .language_classification import run_classification
-from .phylogeny_largeclustering_ETE import create_phylo
+# from .phylogeny_largeclustering_ETE import create_phylo
 
-from .plots.plotting_main import plot, plot_sensitivity
+from .plots.plotting_main import plot  # , plot_sensitivity
 
 
 @main_function
@@ -179,7 +179,7 @@ Examples:
         "--classify": lambda: lang_classification(
             arguments["--classify"], get_dist_threshold()
         ),
-        "--phylo": lambda: create_phylo(arguments["--phylo"]),
+        # "--phylo": lambda: create_phylo(arguments["--phylo"]),
         "--plot-summaries": lambda: plot(
             arguments["--plot-summaries"],
             None,
@@ -197,11 +197,6 @@ Examples:
         "--plot-3d": lambda: plot(arguments["--plot-3d"], None, False, False, True),
         "--plot": lambda: plot(
             arguments["--plot"], get_param_file(arguments["--plot"]), True, True, True
-        ),
-        "--sensplot": lambda: plot_sensitivity(
-            get_gpkg_files(arguments["--null"]),
-            None,  # get_gpkg_files(arguments["--point"]),
-            get_gpkg_files(arguments["--barrier"]),
         ),
     }
 
@@ -244,7 +239,7 @@ Examples:
         lang_classification(output, get_dist_threshold())
 
     if arguments["--all"]:
-        create_phylo(os.path.join(output, "population.gpkg"))
+        # create_phylo(os.path.join(output, "population.gpkg"))
         plot(
             os.path.join(output, "population.gpkg"),
             open_parameters(output),
