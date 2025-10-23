@@ -2,16 +2,15 @@ import numpy as np
 import time
 import os
 
-from .model_popdynamics import population_dynamics
-from .model_movement import move
-from .model_initialization import initialize_population, initialize_barrier
-from .model_interaction import interact
+from .popdynamics import population_dynamics
+from .movement import move
+from .initialization import initialize_population, initialize_barrier
+from .interaction import interact
 
 
 def mutate_profile(
     language_profiles: np.ndarray[int],
-    nr_forms: int,
-    mutation_rate: float,
+    profile_attributes: dict[int, int, float],
     rng: np.random.default_rng,
 ) -> np.ndarray[int]:
     """Mutate language profile of agents"""
@@ -21,10 +20,12 @@ def mutate_profile(
 
     # Generate mutation masks for all agents at once
     mutation_prob = rng.random((nr_agents, nr_meanings))
-    mutation_mask = mutation_prob < mutation_rate
+    mutation_mask = mutation_prob < profile_attributes["mutation_rate"]
 
     # Generate the new forms
-    mutated_forms = rng.integers(0, nr_forms, size=(nr_agents, nr_meanings))
+    mutated_forms = rng.integers(
+        0, profile_attributes["forms"], size=(nr_agents, nr_meanings)
+    )
 
     # Mutate the forms if mask is true
     mutated_profiles = np.where(mutation_mask, mutated_forms, language_profiles)
@@ -35,33 +36,30 @@ def mutate_profile(
 def run_model(p: dict, output_run: str):
     """Run the LECo model of Linguistic Evolutionary COmputations"""
 
+    print(p)
     # Initialize seed
-    rng = np.random.default_rng(p["seed"])
+    rng = np.random.default_rng(p["initialization"]["seed"])
 
     # Start time to track model run time
     start_time = time.time()
 
     # Initialize a spatial barrier if specified
     barrier = None
-    if p["barrier"]:
+    if p["barrier"]["present"]:
         barrier = initialize_barrier(
-            p["x_max"],
-            p["y_max"],
-            p["bar_x"],
-            p["bar_y"],
+            p["space"]["shape"],
+            p["barrier"]["x_extent"],
+            p["barrier"]["y_extent"],
         )
 
     # Initialize a population of agents
     population = initialize_population(
-        p["agents"],
-        p["x_max"],
-        p["y_max"],
-        p["init_subset_area"],
-        p["init_x"],
-        p["init_y"],
-        p["nr_start_languages"],
-        p["forms"],
-        p["meanings"],
+        p["initialization"]["agents"],
+        p["space"]["shape"],
+        p["initialization_subset_area"],
+        p["initialization"]["nr_start_languages"],
+        p["language"]["forms"],
+        p["language"]["meanings"],
         rng,
     )
 
@@ -72,7 +70,7 @@ def run_model(p: dict, output_run: str):
     # Keep track of the maximum ID for agent births
     max_id = population["id"].max()
 
-    for step in range(1, p["steps"] + 1):
+    for step in range(1, p["initialization"]["steps"] + 1):
         print(step)
         # Add the current timestep to the population dataframe
         population["timestep"] = step
@@ -80,12 +78,8 @@ def run_model(p: dict, output_run: str):
         # Apply birth and death events to the population
         population, max_id = population_dynamics(
             population,
-            p["death_rate"],
-            p["birth_rate"],
-            p["logistic_growth"],
-            p["end_growth_time"],
-            p["multiplier"],
-            p["agents"],
+            p["population_dynamics"],
+            p["initialization"]["agents"],
             step,
             max_id,
             rng,
@@ -95,30 +89,26 @@ def run_model(p: dict, output_run: str):
         population.geometry = move(
             population.geometry,
             barrier,
-            p["bar_impermeability"],
-            p["speed"],
-            p["x_max"],
-            p["y_max"],
+            p["barrier"]["impermeability"],
+            p["movement"]["speed"],
+            p["space"]["shape"],
             rng,
         )
 
         # Mutations of the agents' language profiles
         population["language_profile"] = mutate_profile(
             np.stack(population["language_profile"]),
-            p["forms"],
-            p["mutation_rate"],
+            p["language"],
             rng,
         )
 
         # Interaction between nearby agents during which linguistic features can be adopted
         population["language_profile"] = interact(
             np.stack(population["language_profile"]),
-            p["int_partner_prob"],
-            p["diffusion_rate"],
+            p["interaction"],
             population.geometry,
-            p["int_radius"],
-            p["bar_impermeability"],
             barrier,
+            p["barrier"]["impermeability"],
             rng,
         )
 

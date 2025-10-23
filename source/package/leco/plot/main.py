@@ -3,9 +3,9 @@ import geopandas as gpd
 import matplotlib.pyplot as plt
 import matplotlib
 
-from .summary_plots import plot_summaries
-from .animation_plot import plot_animation
-from .threed_interactive_plot import plot_3d_fig
+from .summary import plot_summaries
+from .animation import plot_animation
+from .threed_interactive import plot_3d_fig
 # from .sensitivity_plots import sens_plot
 
 
@@ -44,9 +44,6 @@ def create_colormap(
 def plot(
     input_file: list[str] | str,
     parameters: dict,
-    summaries: bool,
-    animation: bool,
-    interactive: bool,
 ) -> None:
     """Create plots of the leco model output"""
 
@@ -54,26 +51,11 @@ def plot(
 
     cmap, lang_to_index = create_colormap(population.language)
 
-    if summaries:
-        print("Create summarizing plots of the leco model output")
-        plot_summaries(input_file, cmap, lang_to_index)
+    print("Create summarizing plots of the leco model output")
+    plot_summaries(input_file, cmap, lang_to_index)
 
-    if animation:
-        print("Create animation of the leco model output")
-        plot_animation(input_file, parameters, cmap)
+    print("Create animation of the leco model output")
+    plot_animation(input_file, parameters, cmap)
 
-    if interactive:
-        print("Create 3D interactive plot of the leco model output")
-        plot_3d_fig(input_file, cmap)
-
-
-## Work in progress
-""" def plot_sensitivity(
-    null: list[str] | None,
-    point: list[str] | None,
-    barrier: list[str] | None,
-) -> None:
-    "Create summarizing plots for multiple sensitivity runs"
-
-    print("Create sensitivity plots of the leco model output")
-    sens_plot(null, point, barrier) """
+    print("Create 3D interactive plot of the leco model output")
+    plot_3d_fig(input_file, cmap)

@@ -7,10 +7,9 @@ from shapely import (
 
 
 def initialize_barrier(
-    x_max: float,
-    y_max: float,
-    bar_x: list[float],
-    bar_y: list[float],
+    space: list[float, float],
+    bar_x: list[float, float],
+    bar_y: list[float, float],
 ) -> Polygon:
     """Initialize a barrier in continuous space"""
 
@@ -18,7 +17,7 @@ def initialize_barrier(
     barrier = box(bar_x[0], bar_y[0], bar_x[1], bar_y[1])
 
     # Bounding box of the entire space
-    bounds = box(0, 0, x_max, y_max)
+    bounds = box(0, 0, space[0], space[1])
 
     # Clip the barrier to fit inside the bounds
     barrier_clipped = barrier.intersection(bounds)
@@ -42,25 +41,26 @@ def initialize_coordinates(
 
 
 def initialize_positions(
-    x_max: int,
-    y_max: int,
-    init_area: bool,
-    init_x: list[float] | bool,
-    init_y: list[float] | bool,
+    space: list[float],
+    subset_area: dict[bool, list[float], list[float]],
     nr_agents: int,
     rng: np.random.default_rng,
 ) -> tuple[np.ndarray[float], np.ndarray[float]]:
     """Initialize x and y coordinates for the number of start agents within the specified initialization area"""
 
-    if init_area is True:
+    if subset_area["present"] is True:
         # If a initialization area is specified, use those coordinates as the range
-        x = initialize_coordinates(init_x[0], init_x[1], nr_agents, rng)
-        y = initialize_coordinates(init_y[0], init_y[1], nr_agents, rng)
+        x = initialize_coordinates(
+            subset_area["x_extent"][0], subset_area["x_extent"][1], nr_agents, rng
+        )
+        y = initialize_coordinates(
+            subset_area["y_extent"][0], subset_area["y_extent"][1], nr_agents, rng
+        )
         return x, y
     else:
         # Agents can be initialized across the entire space
-        x = initialize_coordinates(0.0, x_max, nr_agents, rng)
-        y = initialize_coordinates(0.0, y_max, nr_agents, rng)
+        x = initialize_coordinates(0.0, space[0], nr_agents, rng)
+        y = initialize_coordinates(0.0, space[1], nr_agents, rng)
         return x, y
 
 
@@ -75,11 +75,8 @@ def initialize_language_profile(
 
 def initialize_population(
     nr_agents: int,
-    x_max: int,
-    y_max: int,
-    init_area: bool,
-    init_x: list[float],
-    init_y: list[float],
+    space: list[float],
+    subset_area: dict[bool, list[float], list[float]],
     nr_languages: int,
     nr_forms: int,
     nr_meanings: int,
@@ -95,7 +92,7 @@ def initialize_population(
     ids = list(range(1, nr_agents + 1))  # ids from 1 to number of agents
 
     # Assign positions
-    x, y = initialize_positions(x_max, y_max, init_area, init_x, init_y, nr_agents, rng)
+    x, y = initialize_positions(space, subset_area, nr_agents, rng)
 
     # Assign language profiles, each profile represented by a string of integers
     # For each agent:

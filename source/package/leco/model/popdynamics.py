@@ -21,43 +21,35 @@ def effective_growth(r: float, K: int, N: int) -> float:
 
 
 def set_birth_rate(
-    logistic_growth: bool,
-    end_growth_time: int,
-    multiplier: float,
-    birth_rate: float,
-    death_rate: float,
+    pop_dynamics: dict[float, float, bool, int, float],
     init_population: int,
     N: int,
     timestep: int,
 ) -> float:
     """Calculate the birth rate of the current timestep"""
-    if logistic_growth is False:
+    if pop_dynamics["logistic_growth"] is False:
         # if logistic growth is not applied, birth rate is constant
-        return birth_rate
+        return pop_dynamics["birth_rate"]
 
     # If the end of the logistic growth period is reached, return the constant birth rate
-    if end_growth_time <= timestep:
-        return birth_rate
+    if pop_dynamics["end_growth_time"] <= timestep:
+        return pop_dynamics["birth_rate"]
 
     # If logistic growth is applied and end of growth period is not yet reached, calculate the dynamic birth rate
-    K = init_population * multiplier  # Calculate the carrying capacity
+    K = init_population * pop_dynamics["multiplier"]  # Calculate the carrying capacity
     # Compute intrinsic growth rate, r, which is constant based on initial population, carrying capacity and duration of growth period
-    r = compute_r(init_population, K, end_growth_time)
+    r = compute_r(init_population, K, pop_dynamics["end_growth_time"])
     # Calculate the effective growth rate at the current population size
     effective_growth_rate = effective_growth(r, K, N)
     # The effective growth rate represent the difference between birth and death rate
-    birth_log_rate = death_rate + effective_growth_rate
+    birth_log_rate = pop_dynamics["death_rate"] + effective_growth_rate
 
     return birth_log_rate
 
 
 def population_dynamics(
     population: gpd.GeoDataFrame,
-    death_rate: float,
-    birth_rate: float,
-    logistic_growth: bool,
-    end_growth_time: int,
-    multiplier: float,
+    pop_dynamics: dict[float, float, bool, int, float],
     init_population: int,
     timestep: int,
     max_id: int,
@@ -68,18 +60,18 @@ def population_dynamics(
     N = len(population)
 
     # Determine for every agent whether it will die based on the deathrate
-    death_masks = rng.choice([False, True], size=N, p=[1 - death_rate, death_rate])
+    death_masks = rng.choice(
+        [False, True],
+        size=N,
+        p=[1 - pop_dynamics["death_rate"], pop_dynamics["death_rate"]],
+    )
 
     # Remove the agents that die while remaining consecutive row count number
     survivors = population[~death_masks].copy().reset_index(drop=True)
 
     # Determine the current birth rate, which may depend on logistic growth
     current_birth_rate = set_birth_rate(
-        logistic_growth,
-        end_growth_time,
-        multiplier,
-        birth_rate,
-        death_rate,
+        pop_dynamics,
         init_population,
         N,
         timestep,

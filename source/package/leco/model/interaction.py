@@ -32,11 +32,10 @@ def nearest_neighbors(
 def compute_interact_prob_neighbors(
     agent_id: int,
     positions: gpd.GeoDataFrame.geometry,
-    radius: float,
+    interact_attributes: dict[float, float, float],
     neighbors: np.ndarray[int],
-    int_partner_prob: float,
-    bar_impermeability: float,
     barrier: Polygon | None,
+    bar_impermeability: float,
 ) -> np.ndarray[float]:
     """Compute the interaction probability for neighbors of a single agent dependent on barrier presence"""
 
@@ -45,19 +44,19 @@ def compute_interact_prob_neighbors(
 
     if barrier is None:
         # Without barrier, all neighbors have an equal probability [int_partner_prob] to interact
-        return np.repeat(int_partner_prob, len(neighbors))
+        return np.repeat(interact_attributes["partner_prob"], len(neighbors))
 
     # Create a Polygon area of the interaction radius
-    int_circle = agent_pos.buffer(radius)
+    int_circle = agent_pos.buffer(interact_attributes["radius"])
     # Find the area that is intersected by the barrier
     impeded_area = int_circle.intersection(barrier)
 
     if impeded_area == 0:
         # If the barrier is not intersecting with the interaction radius, all neighbors have an equal probability of int_partner_prob
-        return np.repeat(int_partner_prob, len(neighbors))
+        return np.repeat(interact_attributes["partner_prob"], len(neighbors))
 
     # The neighbors on or behind the barrier have a lower probability to interact, which is proportional to the bar_impermeability
-    barrier_prob = int_partner_prob * (1.0 - bar_impermeability)
+    barrier_prob = interact_attributes["partner_prob"] * (1.0 - bar_impermeability)
 
     if impeded_area.contains(agent_pos):
         # If the active agent is positioned on a barrier, interaction with all of its neighbors has a lower probability
@@ -86,26 +85,24 @@ def compute_interact_prob_neighbors(
     mask = vectorized.contains(valid_int_area, nb_positions[:, 0], nb_positions[:, 1])
 
     # If they reside on the reachable area, assign the high probability, if not the low probability
-    int_probs = np.where(mask, int_partner_prob, barrier_prob)
+    int_probs = np.where(mask, interact_attributes["partner_prob"], barrier_prob)
 
     return int_probs
 
 
 def interact(
     language_profiles: np.ndarray[int],
-    int_partner_prob: float,
-    diffusion_rate: float,
+    interact_attributes: dict[float, float, float],
     positions: gpd.GeoDataFrame.geometry,
-    int_radius: float,
-    bar_impermeability: float,
     barrier: Polygon | None,
+    bar_impermeability: float,
     rng: np.random.default_rng,
 ) -> np.ndarray[int]:
     """Interaction between agents whereby linguistic diffusion occurs"""
 
     # Get neighbors for all agents within a radius of int_radius
     neighbors_list = nearest_neighbors(
-        positions.get_coordinates().to_numpy(), int_radius
+        positions.get_coordinates().to_numpy(), interact_attributes["radius"]
     )
 
     # Get the current number of agents and the number of meanings
@@ -136,11 +133,10 @@ def interact(
         int_probs_nbs = compute_interact_prob_neighbors(
             agent_idx,
             positions,
-            int_radius,
+            interact_attributes,
             neighbors,
-            int_partner_prob,
-            bar_impermeability,
             barrier,
+            bar_impermeability,
         )
         # Convert neighbor list to an array to make use of the masks
         neighbors = np.array(neighbors)
@@ -170,7 +166,7 @@ def interact(
         ]  # Only keep the probabilities for the interacting neighbors
 
         # Determine which meanings from neighbors' language profiles will be diffused based on the diffusion_rate
-        diffusion_mask = agent_diffusion_probs < diffusion_rate
+        diffusion_mask = agent_diffusion_probs < interact_attributes["diffusion_rate"]
 
         # Select the language profiles of the interacting neighbors
         neighbor_profiles = language_profiles[interacting_neighbors]

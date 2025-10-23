@@ -6,7 +6,7 @@ from matplotlib.animation import FuncAnimation
 from pathlib import Path
 from shapely import Polygon
 import ast
-from ..model_initialization import initialize_barrier
+from ..model.initialization import initialize_barrier
 
 
 def prepare_animation_data(population: gpd.GeoDataFrame) -> list[dict]:
@@ -24,8 +24,7 @@ def create_scatterframe(
     ax: plt.subplot,
     cmap: matplotlib.colors.ListedColormap,
     nr_languages: int,
-    x_max: int,
-    y_max: int,
+    space: list[float, float],
     barrier: Polygon | None,
 ) -> list:
     """Create a scatter plot for each frame of the animation"""
@@ -60,8 +59,8 @@ def create_scatterframe(
         marker=".",
     )
 
-    ax.set_xlim(0, x_max)
-    ax.set_ylim(0, y_max)
+    ax.set_xlim(0, space[0])
+    ax.set_ylim(0, space[1])
     ax.set_xlabel("X Position (km)", size=13)
     ax.set_ylabel("Y Position (km)", size=13)
     ax.tick_params(axis="both", labelsize=10)
@@ -74,8 +73,7 @@ def create_animation(
     animation_data: list[dict],
     output_path: str,
     cmap: matplotlib.colors.ListedColormap,
-    x_max: int,
-    y_max: int,
+    space: list[float, float],
     barrier: Polygon | None,
     filename: str = "animation.gif",
 ) -> None:
@@ -99,8 +97,7 @@ def create_animation(
             ax,
             cmap,
             nr_languages,
-            x_max,
-            y_max,
+            space,
             barrier,
         ),  # Arguments for the frame function
         frames=animation_data,  # Pass the data for each frame to the function
@@ -137,18 +134,17 @@ def plot_animation(
     # Access parameters from the output directory
     output_path = Path(input_file).parent
 
-    if type(parameters["x_max"]) is not int:
-        parameters["x_max"] = int(parameters["x_max"])
-        parameters["y_max"] = int(parameters["y_max"])
+    """ if type(parameters["space"]["shape"]) is not int:
+        parameters["space"]["shape"] = int(parameters["space"]["shape"])
+        #parameters["y_max"] = int(parameters["y_max"]) """
 
     # Initialize a spatial barrier if specified
     barrier = None
-    if parameters["barrier"] == "True":
+    if parameters["barrier"]["present"] == "True":
         barrier = initialize_barrier(
-            parameters["x_max"],
-            parameters["y_max"],
-            string_to_floatlist(parameters["bar_x"]),
-            string_to_floatlist(parameters["bar_y"]),
+            parameters["space"]["shape"],
+            string_to_floatlist(parameters["barrier"]["x_extend"]),
+            string_to_floatlist(parameters["barrier"]["y_extend"]),
         )
 
     animation_data = prepare_animation_data(population)
@@ -156,7 +152,6 @@ def plot_animation(
         animation_data,
         output_path,
         cmap,
-        parameters["x_max"],
-        parameters["y_max"],
+        parameters["space"]["shape"],
         barrier,
     )

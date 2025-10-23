@@ -103,18 +103,17 @@ def move(
     barrier: Polygon | None,
     bar_impermeability: float,
     speed: float,
-    x_max: int,
-    y_max: int,
+    space: list[float, float],
     rng: np.random.default_rng,
 ) -> gpd.GeoSeries.geometry:
     """Move agents across a continuous space with a certain speed"""
 
     angle = movement_direction(len(position), rng)  # Get random angles for all agents
     new_x = move_axis(
-        position.x.values, change_pos(speed, angle, "x"), x_max
+        position.x.values, change_pos(speed, angle, "x"), space[0]
     )  # Calculate the change in position along x axis and move
     new_y = move_axis(
-        position.y.values, change_pos(speed, angle, "y"), y_max
+        position.y.values, change_pos(speed, angle, "y"), space[1]
     )  # Calculate the change in position along y axis and move
     new_position = gpd.points_from_xy(new_x, new_y)
 
