@@ -1,16 +1,19 @@
-import os
-import geopandas as gpd
-import matplotlib.pyplot as plt
-import matplotlib
-from matplotlib.animation import FuncAnimation
-from pathlib import Path
-from shapely import Polygon
+"""Create an animation of the leco model output."""
+
 import ast
-from ..model.initialization import initialize_barrier
+from pathlib import Path
+
+import geopandas as gpd
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
+from shapely import Polygon
+
+from leco.model.initialization import initialize_barrier
 
 
 def prepare_animation_data(population: gpd.GeoDataFrame) -> list[dict]:
-    """Create a list of dictionaries (frames) containing for each timestep the population data"""
+    """Create a list of dictionaries (frames) containing for each timestep the population data."""
     animation_data = []
     for timestep, group in population.groupby("timestep"):
         frame_data = {"timestep": timestep, "population": group.copy()}
@@ -22,16 +25,14 @@ def prepare_animation_data(population: gpd.GeoDataFrame) -> list[dict]:
 def create_scatterframe(
     data: gpd.GeoDataFrame,
     ax: plt.subplot,
-    cmap: matplotlib.colors.ListedColormap,
+    cmap: mpl.colors.ListedColormap,
     nr_languages: int,
     space: list[float, float],
     barrier: Polygon | None,
 ) -> list:
-    """Create a scatter plot for each frame of the animation"""
+    """Create a scatter plot for each frame of the animation."""
     timestep = data["timestep"]
-    timestep = (
-        timestep * 20
-    )  # Scale to represent years (assuming each timestep is 20 years)
+    timestep = timestep * 20  # Scale to represent years (assuming each timestep is 20 years)
     population = data["population"]
 
     ax.clear()
@@ -39,7 +40,7 @@ def create_scatterframe(
     # If a barrier is present in the simulation, add this to the plot
     if barrier:
         coords = list(barrier.exterior.coords)
-        poly = matplotlib.patches.Polygon(
+        poly = mpl.patches.Polygon(
             coords,
             fill=True,
             color="peru",
@@ -72,13 +73,12 @@ def create_scatterframe(
 def create_animation(
     animation_data: list[dict],
     output_path: str,
-    cmap: matplotlib.colors.ListedColormap,
+    cmap: mpl.colors.ListedColormap,
     space: list[float, float],
     barrier: Polygon | None,
     filename: str = "animation.gif",
 ) -> None:
-    """Create an animated gif file of agents positions over time colored by language"""
-
+    """Create an animated gif file of agents positions over time colored by language."""
     fig, ax = plt.subplots()
 
     # Extract unique languages
@@ -86,7 +86,7 @@ def create_animation(
     for data in animation_data:
         all_languages.update(data["population"]["language"])
 
-    unique_languages = sorted(list(all_languages))
+    unique_languages = sorted(all_languages)
     nr_languages = len(unique_languages)
 
     # Create the animation using the FuncAnimation class
@@ -107,7 +107,7 @@ def create_animation(
     )
 
     # Save the animation as a GIF file
-    gif_path = os.path.join(output_path, filename)
+    gif_path = Path(output_path) / filename
     print(gif_path)
     anim.save(gif_path, writer="pillow", fps=4)  # fps is frames per second
     plt.close(fig)
@@ -115,7 +115,7 @@ def create_animation(
 
 
 def string_to_floatlist(string: str) -> list[float]:
-    """Changes string to a list of float values"""
+    """Change string to a list of float values."""
     values = ast.literal_eval(string)
     a, b = float(values[0]), float(values[1])
 
@@ -125,18 +125,14 @@ def string_to_floatlist(string: str) -> list[float]:
 def plot_animation(
     input_file: str,
     parameters: dict,
-    cmap: matplotlib.colors.ListedColormap,
+    cmap: mpl.colors.ListedColormap,
 ) -> None:
-    """Create an animation of the leco model output"""
+    """Create an animation of the leco model output."""
     # Read in the population data across all timesteps
     population = gpd.read_file(input_file)
 
     # Access parameters from the output directory
     output_path = Path(input_file).parent
-
-    """ if type(parameters["space"]["shape"]) is not int:
-        parameters["space"]["shape"] = int(parameters["space"]["shape"])
-        #parameters["y_max"] = int(parameters["y_max"]) """
 
     # Initialize a spatial barrier if specified
     barrier = None

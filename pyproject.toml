@@ -25,3 +25,24 @@ leco_model = "leco.cli.leco:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["source/package/leco"]
+
+[tool.ruff]
+line-length = 110
+fix = true
+
+[tool.lint]
+select = ["ALL"]
+ignore = [
+    # 'print' statement found
+    "T201",
+    # too many arguments in function definition
+    "PLR0913",
+    # specifying long messages outside exception class      #WANT TO LEAVE VALUEERROS OUT EVENTUALLY ANYWAYS
+    "TRY003",
+    # allow magic variables to be defined
+    "PLR2004",
+    # need to specify timezone
+    "DTZ005",
+    # Specify docstring at start of file
+    "D100",
+]

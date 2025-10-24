@@ -1,13 +1,15 @@
+"""Create a 3D interactive plot of the leco model output."""
+
 import geopandas as gpd
+import matplotlib as mpl
 import matplotlib.pyplot as plt
-import matplotlib
 
 
 def plot_3d_fig(
     input_file: str,
-    cmap: matplotlib.colors.ListedColormap,
+    cmap: mpl.colors.ListedColormap,
 ) -> None:
-    """Create a 3D interactive plot of the leco model output"""
+    """Create a 3D interactive plot of the leco model output."""
     # Read in the population data across all timesteps
     population = gpd.read_file(input_file)
 
@@ -24,13 +26,13 @@ def plot_3d_fig(
     )
 
     # Add lines to visualize the evolution of individual agents over time
-    for pid, group in population.groupby("id"):
+    for _pid, group in population.groupby("id"):
         # Sort by timestep to ensure correct line plotting
-        group = group.sort_values("timestep")
+        group_sorted = group.sort_values("timestep")
         ax.plot(
-            group.geometry.x,
-            group.geometry.y,
-            group.timestep,
+            group_sorted.geometry.x,
+            group_sorted.geometry.y,
+            group_sorted.timestep,
             color="gray",
             linewidth=0.5,
             alpha=0.5,

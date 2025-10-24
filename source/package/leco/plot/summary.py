@@ -1,15 +1,15 @@
-import os
-import numpy as np
-import geopandas as gpd
-import matplotlib.pyplot as plt
-import matplotlib
+"""Functions to create summary plots of leco model output."""
+
 from pathlib import Path
 
+import geopandas as gpd
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import numpy as np
 
-def calculate_tick_intervals(
-    min_val: int, max_val: int, max_ticks: int = 10
-) -> list[int]:
-    """Calculate appropriate tick intervals to keep plots readable"""
+
+def calculate_tick_intervals(min_val: int, max_val: int, max_ticks: int = 10) -> list[int]:
+    """Calculate appropriate tick intervals to keep plots readable."""
     range_val = max_val - min_val
 
     if range_val == 0:
@@ -45,15 +45,14 @@ def calculate_tick_intervals(
     if max_val not in ticks:
         ticks.append(int(max_val))
 
-    return sorted(list(set(ticks)))
+    return sorted(set(ticks))
 
 
 def language_number_plot(
     output_path: str,
     languagenumber: list[int],
 ) -> None:
-    """Plot number of languages over time"""
-
+    """Plot number of languages over time."""
     nr_steps = len(languagenumber)
 
     plt.plot(languagenumber, marker="o")
@@ -72,19 +71,19 @@ def language_number_plot(
     plt.title("Number of Languages Over Time")
 
     # Save the plot
-    plt.savefig(os.path.join(output_path, "Number_of_Languages.pdf"))
+    plt.savefig(Path(output_path) / "Number_of_Languages.pdf")
     plt.close()
 
 
 def language_counts_plot(
     language_counts: gpd.GeoDataFrame,
     output_path: str,
-    cmap: matplotlib.colors.ListedColormap,
+    cmap: mpl.colors.ListedColormap,
     lang_to_index: dict[int, int],
 ) -> None:
-    """Plot number of agents speaking a language over time"""
-
-    # Sort the languages by most to least spoken at the first timestep, so most spoken languages are shown on the bottom
+    """Plot number of agents speaking a language over time."""
+    # Sort the languages by most to least spoken at the first timestep,
+    # so most spoken languages are shown on the bottom
     sorted_cols = language_counts.iloc[0].sort_values(ascending=False).index
     language_counts = language_counts[sorted_cols]
 
@@ -94,7 +93,7 @@ def language_counts_plot(
     # Create color list that matches sorted language columns
     colors = [cmap.colors[lang_to_index[lang]] for lang in language_counts.columns]
 
-    fig, ax = plt.subplots(figsize=(10, 6))
+    _fig, ax = plt.subplots(figsize=(10, 6))
 
     # Create a stacked area plot for the number of agents per language over time
     language_counts.plot.area(
@@ -112,17 +111,16 @@ def language_counts_plot(
     ax.set_title("Number of Agents per Language over Time", size=22)
 
     # Save the plot
-    plt.savefig(os.path.join(output_path, "Agents_per_Language.jpeg"), dpi=300)
+    plt.savefig(Path(output_path) / "Agents_per_Language.jpeg", dpi=300)
     plt.close()
 
 
 def plot_summaries(
     input_file: str,
-    cmap: matplotlib.colors.ListedColormap | None,
+    cmap: mpl.colors.ListedColormap | None,
     lang_to_index: dict[int, int] | None,
 ) -> None:
-    """Create summarizing plots of the leco model output"""
-
+    """Create summarizing plots of the leco model output."""
     # Read in the population data across all timesteps
     population = gpd.read_file(input_file)
 
@@ -133,7 +131,5 @@ def plot_summaries(
     language_number_plot(output_path, languagenumber)
 
     # Create a figure showing the number of agents speaking a language over time
-    language_counts = (
-        population.groupby(["timestep", "language"])["id"].count().unstack(fill_value=0)
-    )
+    language_counts = population.groupby(["timestep", "language"])["id"].count().unstack(fill_value=0)
     language_counts_plot(language_counts, output_path, cmap, lang_to_index)

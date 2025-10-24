@@ -1,4 +1,4 @@
-"""Cluster language profiles into languages in 3d across time."""
+"""Cluster language profiles into languages per timestep."""
 
 from pathlib import Path
 
@@ -42,21 +42,27 @@ def language_classification(
         n_clusters=None,
         distance_threshold=dist_threshold,  # Threshold for clustering
         metric="hamming",
-        linkage="complete",
+        linkage="average",
     )  # Average linkage calculates over the mean of the distances between all points in the clusters
 
     return clustering.fit_predict(language_profiles)
 
 
-def dynamic_clustering(population: gpd.GeoDataFrame, dist_threshold: float) -> gpd.GeoDataFrame:
-    """Cluster language profiles into languages for each timestep separately."""
-    clustered_dfs = []
+def analyze_cluster_transitions(population: gpd.GeoDataFrame) -> dict[tuple[int, int], int]:
+    """Track how agents move between language clusters over time."""
+    transitions = {}
 
-    for _timestep, stepdata in population.groupby("timestep"):
-        language_profiles = np.stack(stepdata["language_profile"])
-        stepdata["language"] = language_classification(language_profiles, dist_threshold)
+    for _agent_id, agent_data in population.groupby("id"):
+        # Get sequential pairs of timesteps
+        timesteps = sorted(agent_data["timestep"].unique())
+        for t1, t2 in iter.tools.pairwise(timesteps[:-1], timesteps[1:]):
+            cluster1 = agent_data[agent_data["timestep"] == t1]["language"].iloc[0]
+            cluster2 = agent_data[agent_data["timestep"] == t2]["language"].iloc[0]
 
-    return pd.concat(clustered_dfs, ignore_index=True)
+            transition = (cluster1, cluster2)
+            transitions[transition] = transitions.get(transition, 0) + 1
+
+    return transitions
 
 
 def run_classification(input_path: str, dist_threshold: float) -> None:
@@ -64,11 +70,15 @@ def run_classification(input_path: str, dist_threshold: float) -> None:
     # Read in the population data across all timesteps
     population = read_geoparquet(input_path)
 
-    # Cluster the language profiles into languages based on the distance threshold
-    population["language"] = language_classification(
-        np.stack(population["language_profile"]),
-        dist_threshold,
-    )
+    for _timestep, stepdata in population.groupby("timestep"):
+        language_profiles = np.stack(stepdata["language_profile"])
+        stepdata["language"] = language_classification(language_profiles, dist_threshold)
+        population.loc[stepdata.index, "language"] = stepdata["language"]
+
+    transitions = analyze_cluster_transitions(population)
+    print("Language cluster transitions between timesteps:")
+    for (from_cluster, to_cluster), count in transitions.items():
+        print(f"From {from_cluster} to {to_cluster}: {count} agents")
 
     # Save output to a single gpkg file
-    population.to_file(Path(input_path) / "populationcomplete.gpkg", driver="GPKG")
+    population.to_file(Path(input_path) / "population.gpkg", driver="GPKG")

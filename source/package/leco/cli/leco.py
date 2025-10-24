@@ -1,80 +1,72 @@
-import os.path  ### WHY PATH
+"""Command line interface for leco model."""
+
+import shutil
 import sys
 from datetime import datetime
+from pathlib import Path
+
 import docopt
-import shutil
 import tomllib
-import traceback
+from leco.cluster.language_classification import run_classification
+from leco.model.main import run_model
+from leco.plot.main import plot
+from leco.version import __version__ as version
 
-from ..version import __version__ as version
 from .main import main_function
-from ..model.main import run_model
-from ..cluster.language_classification import run_classification
-
-# from .phylogeny_largeclustering_ETE import create_phylo
-from ..plot.main import plot
 
 
 @main_function
 def run_leco(config_file: str, output_path: str) -> None:
+    """Run the leco model with specified configuration."""
     config = load_config(config_file)
     # Create a subdirectory for the specific run in the output path
     output_dir = create_run_dir(output_path)
     # Store a copy of the configuration file iin the run directory
-    shutil.copy2(config_file, os.path.join(output_dir, "config.toml"))
+    shutil.copy2(config_file, Path(output_dir) / "config.toml")
     # Run the leco model
-    try:
-        run_model(config, output_dir)
-    except Exception as e:
-        print(f"Error running leco model: {e}")
-        traceback.print_exc()
-        print("Terminating execution of the leco model")
-        exit(1)
+    run_model(config, output_dir)
 
 
 def lang_classification(input_dir: str, dist_threshold: float) -> None:
+    """Run language classification on the leco model output."""
     run_classification(input_dir, dist_threshold)
 
 
 def plot_results(data: str, config_file: str) -> None:
+    """Create plots of the leco model output."""
     config = load_config(config_file)
     plot(data, config)
 
 
-def load_config(config_file):
-    """Load TOML config with error handling"""
-    try:
-        with open(config_file, "rb") as f:
-            return tomllib.load(f)
-    except Exception as e:
-        print(f"Error: {e}. Please provide a configuration file in TOML format")
-        exit(1)
+def load_config(config_file: str) -> dict:
+    """Load TOML config with error handling."""
+    with Path.open(config_file, "rb") as f:
+        return tomllib.load(f)
 
 
 def create_run_dir(outputpath: str, suffix: str | None = None) -> str:
-    """Create output directory for specific run and store parameter values in a text file"""
-    os.makedirs(
-        outputpath, exist_ok=True
-    )  # Create the directory if it does not exist yet
+    """Create output directory for specific run and store parameter values in a text file."""
+    # Create the directory if it does not exist yet
+    Path.mkdir(outputpath, exist_ok=True, parents=True)
 
     # Create a subdirectory for each run named after date and time
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-    output_dir_run = os.path.join(
-        outputpath,
+    output_dir_run = Path(outputpath) / (
         f"results_{timestamp}_{suffix}" if suffix else f"results_{timestamp}",
     )
-    os.makedirs(output_dir_run, exist_ok=True)
+    Path.mkdir(output_dir_run, exist_ok=True, parents=True)
 
     return output_dir_run
 
 
 def get_dist_threshold(threshold: str) -> float:
-    """Get distance threshold from command line arguments or return default value"""
+    """Get distance threshold from command line arguments or return default value."""
     return float(threshold) if threshold else 0.3
 
 
 def main() -> None:
-    command = os.path.basename(sys.argv[0])
+    """Command line interface for leco model."""
+    command = Path(sys.argv[0]).name
     usage = f"""\
 Run leco model
 
@@ -95,7 +87,8 @@ Options:
 Typical workflow:
     {command} run -c C:/home/PhD/leco_model/configuration.toml -o C:/home/PhD/leco_model/output/
     {command} cluster -i C:/home/PhD/leco_model/output/results_20251023 -d 0.2
-    {command} plot -g C:/home/PhD/leco_model/output/results_20251023/population.gpkg -c C:/home/PhD/leco_model/output/results_20251023/config.toml
+    {command} plot -g C:/home/PhD/leco_model/output/results_20251023/population.gpkg
+                   -c C:/home/PhD/leco_model/output/results_20251023/config.toml
 """
     arguments = docopt.docopt(usage, sys.argv[1:], version=version)
     print(arguments)

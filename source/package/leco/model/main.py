@@ -1,11 +1,14 @@
-import numpy as np
-import time
-import os
+"""Runs the leco model."""
 
-from .popdynamics import population_dynamics
-from .movement import move
-from .initialization import initialize_population, initialize_barrier
+import time
+from pathlib import Path
+
+import numpy as np
+
+from .initialization import initialize_barrier, initialize_population
 from .interaction import interact
+from .movement import move
+from .popdynamics import population_dynamics
 
 
 def mutate_profile(
@@ -13,8 +16,7 @@ def mutate_profile(
     profile_attributes: dict[int, int, float],
     rng: np.random.default_rng,
 ) -> np.ndarray[int]:
-    """Mutate language profile of agents"""
-
+    """Mutate language profile of agents."""
     # Get the current number of agents and the number of meanings
     nr_agents, nr_meanings = language_profiles.shape
 
@@ -24,7 +26,9 @@ def mutate_profile(
 
     # Generate the new forms
     mutated_forms = rng.integers(
-        0, profile_attributes["forms"], size=(nr_agents, nr_meanings)
+        0,
+        profile_attributes["forms"],
+        size=(nr_agents, nr_meanings),
     )
 
     # Mutate the forms if mask is true
@@ -33,9 +37,8 @@ def mutate_profile(
     return list(mutated_profiles)
 
 
-def run_model(p: dict, output_run: str):
-    """Run the LECo model of Linguistic Evolutionary COmputations"""
-
+def run_model(p: dict, output_run: str) -> None:
+    """Run the LECo model of Linguistic Evolutionary COmputations."""
     print(p)
     # Initialize seed
     rng = np.random.default_rng(p["initialization"]["seed"])
@@ -65,7 +68,7 @@ def run_model(p: dict, output_run: str):
 
     if output_run:
         # Write initialization dataframe to a .geoparquet file
-        population.to_parquet(os.path.join(output_run, "output000.geoparquet"))
+        population.to_parquet(Path(output_run) / "output000.geoparquet")
 
     # Keep track of the maximum ID for agent births
     max_id = population["id"].max()
@@ -115,7 +118,7 @@ def run_model(p: dict, output_run: str):
         # Save output per timestep to geoparquet file
         if output_run:
             population.to_parquet(
-                os.path.join(output_run, f"output{step:03d}.geoparquet")
+                Path(output_run) / f"output{step:03d}.geoparquet",
             )
 
     print("--- %s seconds ---" % (time.time() - start_time))
