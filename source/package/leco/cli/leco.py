@@ -7,7 +7,7 @@ from pathlib import Path
 
 import docopt
 import tomllib
-from leco.cluster.language_classification import run_classification
+from leco.cluster.speciation import run_speciation
 from leco.model.main import run_model
 from leco.plot.main import plot
 from leco.version import __version__ as version
@@ -29,7 +29,8 @@ def run_leco(config_file: str, output_path: str) -> None:
 
 def lang_classification(input_dir: str, dist_threshold: float) -> None:
     """Run language classification on the leco model output."""
-    run_classification(input_dir, dist_threshold)
+    # run_classification(input_dir, dist_threshold)
+    run_speciation(input_dir, dist_threshold)
 
 
 def plot_results(data: str, config_file: str) -> None:
@@ -47,14 +48,15 @@ def load_config(config_file: str) -> dict:
 def create_run_dir(outputpath: str, suffix: str | None = None) -> str:
     """Create output directory for specific run and store parameter values in a text file."""
     # Create the directory if it does not exist yet
-    Path.mkdir(outputpath, exist_ok=True, parents=True)
+    base = Path(outputpath)
+    base.mkdir(exist_ok=True, parents=True)
+    print(base)
 
     # Create a subdirectory for each run named after date and time
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-    output_dir_run = Path(outputpath) / (
-        f"results_{timestamp}_{suffix}" if suffix else f"results_{timestamp}",
-    )
-    Path.mkdir(output_dir_run, exist_ok=True, parents=True)
+    dir_name = f"results_{timestamp}_{suffix}" if suffix else f"results_{timestamp}"
+    output_dir_run = base / dir_name
+    output_dir_run.mkdir(parents=True, exist_ok=True)
 
     return output_dir_run
 

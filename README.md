@@ -62,41 +62,44 @@ The standard run generates .geoparquet files of the population data, including a
 The simulation requires a TOML configuration file to set up the parameters to run the `leco` model. This file should include the following parameters:
 
 ```toml
-# Initialization settings
+[initialization]
 agents = 5
-steps = 200
-seed = 42
+steps = 100
+seed = 51
 nr_start_languages = 5
-init_subset_area = true
-init_x = [480,520]
-init_y = [930,970]
 
-# Spatial boundaries
-x_max = 1000
-y_max = 1000
+[space]
+shape = [1000, 1000]
 
-# Barrier
-barrier = false
-bar_x = [250, 450]
-bar_y = [0, 1000]
-bar_impermeability = 0.6
+[initialization_subset_area]
+present = true
+x_extent = [480,520]
+y_extent = [930,970]
 
-# Agent attributes
+[barrier]
+present = false
+x_extent = [250, 450]
+y_extent = [0, 1000]
+impermeability = 0.6
+
+[movement]
 speed = 20
+
+[language]
 meanings = 100
 forms = 120
 mutation_rate = 0.001
 
-# Population dynamics
+[population_dynamics]
 death_rate = 0.01
 birth_rate = 0.01
 logistic_growth = true
 multiplier = 50
 end_growth_time = 100
 
-# Interaction settings
-int_radius = 20
-int_partner_prob = 0.8
+[interaction]
+radius = 20
+partner_prob = 0.8
 diffusion_rate = 0.01
 ```
 
