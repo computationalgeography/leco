@@ -1,7 +1,7 @@
 """Runs the leco model."""
 
-import time
 from pathlib import Path
+from tqdm import tqdm
 
 import numpy as np
 
@@ -39,12 +39,8 @@ def mutate_profile(
 
 def run_model(p: dict, output_run: str) -> None:
     """Run the LECo model of Linguistic Evolutionary COmputations."""
-    print(p)
     # Initialize seed
     rng = np.random.default_rng(p["initialization"]["seed"])
-
-    # Start time to track model run time
-    start_time = time.time()
 
     # Initialize a spatial barrier if specified
     barrier = None
@@ -73,8 +69,7 @@ def run_model(p: dict, output_run: str) -> None:
     # Keep track of the maximum ID for agent births
     max_id = population["id"].max()
 
-    for step in range(1, p["initialization"]["steps"] + 1):
-        print(step)
+    for step in tqdm(range(1, p["initialization"]["steps"] + 1)):
         # Add the current timestep to the population dataframe
         population["timestep"] = step
 
@@ -120,9 +115,6 @@ def run_model(p: dict, output_run: str) -> None:
             population.to_parquet(
                 Path(output_run) / f"output{step:03d}.geoparquet",
             )
-
-    print("--- %s seconds ---" % (time.time() - start_time))
-    print("--- %s minutes ---" % ((time.time() - start_time) / 60))
 
 
 # %%

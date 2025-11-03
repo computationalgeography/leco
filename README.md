@@ -82,6 +82,13 @@ x_extent = [250, 450]
 y_extent = [0, 1000]
 impermeability = 0.6
 
+[population_dynamics]
+death_rate = 0.01
+birth_rate = 0.01
+logistic_growth = true
+multiplier = 50
+end_growth_time = 100
+
 [movement]
 speed = 20
 
@@ -89,13 +96,6 @@ speed = 20
 meanings = 100
 forms = 120
 mutation_rate = 0.001
-
-[population_dynamics]
-death_rate = 0.01
-birth_rate = 0.01
-logistic_growth = true
-multiplier = 50
-end_growth_time = 100
 
 [interaction]
 radius = 20

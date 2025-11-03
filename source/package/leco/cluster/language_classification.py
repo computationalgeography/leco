@@ -71,4 +71,4 @@ def run_classification(input_path: str, dist_threshold: float) -> None:
     )
 
     # Save output to a single gpkg file
-    population.to_file(Path(input_path) / "populationcomplete.gpkg", driver="GPKG")
+    population.to_file(Path(input_path) / "population.gpkg", driver="GPKG")

@@ -1,6 +1,7 @@
 """Functions for initialization of the agent population and space."""
 
 import geopandas as gpd
+import logging
 import numpy as np
 from shapely import (
     Polygon,
@@ -25,7 +26,7 @@ def initialize_barrier(
 
     # Check if clipping occurred
     if not barrier_clipped.equals(barrier):
-        print("Warning: Spatial barrier was clipped to fit within the entire space.")
+        logging.warning("Warning: Spatial barrier was clipped to fit within the entire space.")
 
     return barrier_clipped
 
@@ -82,6 +83,7 @@ def initialize_population(
     - id
     - language_profile
     - point position
+    - parent id (set to None at initialization)
     """
     ids = list(range(1, nr_agents + 1))  # ids from 1 to number of agents
 
@@ -108,6 +110,7 @@ def initialize_population(
         {
             "id": ids,
             "language_profile": language_profile,
+            "parent_id": int(-1) * nr_agents,
         },
         geometry=gpd.points_from_xy(x, y),
     )

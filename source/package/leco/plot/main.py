@@ -1,6 +1,7 @@
 """Create plots of the leco model output."""
 
 import geopandas as gpd
+import logging
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
@@ -51,11 +52,11 @@ def plot(
 
     cmap, lang_to_index = create_colormap(population.language, parameters["initialization"]["seed"])
 
-    print("Create summarizing plots of the leco model output")
+    logging.debug("Create summarizing plots of the leco model output")
     plot_summaries(input_file, cmap, lang_to_index)
 
-    print("Create animation of the leco model output")
+    logging.debug("Create animation of the leco model output")
     plot_animation(input_file, parameters, cmap)
 
-    print("Create 3D interactive plot of the leco model output")
+    logging.debug("Create 3D interactive plot of the leco model output")
     plot_3d_fig(input_file, cmap)

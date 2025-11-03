@@ -10,3 +10,4 @@ shapely
 datetime
 matplotlib
 pyarrow
+tqdm

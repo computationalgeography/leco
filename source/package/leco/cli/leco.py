@@ -7,6 +7,9 @@ from pathlib import Path
 
 import docopt
 import tomllib
+
+from leco.cluster.language_classification import run_classification
+from leco.cluster.per_timestep import run_classification_single
 from leco.cluster.speciation import run_speciation
 from leco.model.main import run_model
 from leco.plot.main import plot
@@ -27,10 +30,19 @@ def run_leco(config_file: str, output_path: str) -> None:
     run_model(config, output_dir)
 
 
-def lang_classification(input_dir: str, dist_threshold: float) -> None:
-    """Run language classification on the leco model output."""
-    # run_classification(input_dir, dist_threshold)
-    run_speciation(input_dir, dist_threshold)
+def lang_classification(input_dir: str, method: str, dist_threshold: float) -> None:
+    """Run language classification on the leco model output for a specified method."""
+    if method == "all":
+        # 3D clustering over all timesteps
+        run_classification(input_dir, dist_threshold)
+
+    if method == "single":
+        # 2D clustering per timestep [Note: under development]
+        run_classification_single(input_dir, dist_threshold)
+
+    if method == "speciation":
+        # Feed-forward speciation-based clustering [Note: under development]
+        run_speciation(input_dir, dist_threshold)
 
 
 def plot_results(data: str, config_file: str) -> None:
@@ -50,7 +62,6 @@ def create_run_dir(outputpath: str, suffix: str | None = None) -> str:
     # Create the directory if it does not exist yet
     base = Path(outputpath)
     base.mkdir(exist_ok=True, parents=True)
-    print(base)
 
     # Create a subdirectory for each run named after date and time
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
@@ -61,11 +72,6 @@ def create_run_dir(outputpath: str, suffix: str | None = None) -> str:
     return output_dir_run
 
 
-def get_dist_threshold(threshold: str) -> float:
-    """Get distance threshold from command line arguments or return default value."""
-    return float(threshold) if threshold else 0.3
-
-
 def main() -> None:
     """Command line interface for leco model."""
     command = Path(sys.argv[0]).name
@@ -74,26 +80,26 @@ Run leco model
 
 Usage:
     {command} run --config <configfile> --output <outputdirectory>
-    {command} cluster --input <inputdirectory> [--dist <distancethreshold>]
+    {command} cluster --input <inputdirectory> [--method <all|speciation|single>] [--dist <distancethreshold>]
     {command} plot --gpkg <gpkgfile> --config <configfile>
 
 Options:
-  -h --help                      Show this screen and exit
-  --version                      Show version and exit
-  -c --config <configfile>       Path to the configuration TOML file
-  -d --dist <distthreshold>      Distance threshold to set clusters [default: 0.3]
-  -g --gpkg <gpkgfile>           Path to a gpkg file created during the cluster step
-  -i --input <inputdirectory>    Input directory containing the .geoparquet files created during the run
-  -o --output <outputdirectory>  Output directory
+  -h --help                         Show this screen and exit
+  --version                         Show version and exit
+  --config <configfile>             Path to the configuration TOML file
+  --dist <distthreshold>            Distance threshold to set clusters [default: 0.3]
+  --gpkg <gpkgfile>                 Path to a gpkg file created during the clustering
+  --input <inputdirectory>          Input directory containing the .geoparquet files created during the run
+  --method <all|speciation|single>  Clustering method to use
+  --output <outputdirectory>        Output directory
 
 Typical workflow:
-    {command} run -c C:/home/PhD/leco_model/configuration.toml -o C:/home/PhD/leco_model/output/
-    {command} cluster -i C:/home/PhD/leco_model/output/results_20251023 -d 0.2
-    {command} plot -g C:/home/PhD/leco_model/output/results_20251023/population.gpkg
-                   -c C:/home/PhD/leco_model/output/results_20251023/config.toml
+    {command} run --config C:/home/PhD/leco_model/configuration.toml --output C:/home/PhD/leco_model/output/
+    {command} cluster --input C:/home/PhD/leco_model/output/results_20251023 --method speciation --dist 0.2
+    {command} plot --gpkg C:/home/PhD/leco_model/output/results_20251023/population.gpkg --config C:/home/PhD/leco_model/output/results_20251023/config.toml
 """
+
     arguments = docopt.docopt(usage, sys.argv[1:], version=version)
-    print(arguments)
 
     if arguments["run"]:
         config_file = arguments["--config"]
@@ -102,8 +108,10 @@ Typical workflow:
 
     if arguments["cluster"]:
         directory = arguments["--input"]
-        dist_threshold = get_dist_threshold(arguments["--dist"])
-        lang_classification(directory, dist_threshold)
+        # Get method and distance threshold if given, oterwise use defaults
+        method = arguments.get("--method", "all")
+        dist_threshold = float(arguments.get("--dist", 0.3))
+        lang_classification(directory, method, dist_threshold)
 
     if arguments["plot"]:
         file = arguments["--gpkg"]

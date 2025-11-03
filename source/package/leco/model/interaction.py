@@ -1,6 +1,7 @@
 """Functions for agent interaction and linguistic diffusion."""
 
 import geopandas as gpd
+import logging
 import numpy as np
 from scipy.spatial import KDTree
 from shapely import (
@@ -131,7 +132,7 @@ def interact(
         neighbors_array = np.array(neighbors)
 
         if len(neighbors_array) != len(int_probs_nbs):
-            print("Error! Number of neighbors is not equal to the number of neighbor probabilities!!")
+            logging.error("Error! Number of neighbors is not equal to the number of neighbor probabilities!!")
 
         # Based on the interaction probabilities, the agent interact with 'partner_prob' proportion
         # of their neighbors

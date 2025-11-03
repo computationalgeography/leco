@@ -4,6 +4,7 @@ import ast
 from pathlib import Path
 
 import geopandas as gpd
+import logging
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
@@ -108,10 +109,10 @@ def create_animation(
 
     # Save the animation as a GIF file
     gif_path = Path(output_path) / filename
-    print(gif_path)
+    logging.debug(gif_path)
     anim.save(gif_path, writer="pillow", fps=4)  # fps is frames per second
     plt.close(fig)
-    print(f"Animation saved: {gif_path}")
+    logging.debug(f"Animation saved: {gif_path}")
 
 
 def string_to_floatlist(string: str) -> list[float]:
