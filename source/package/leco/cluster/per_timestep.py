@@ -4,33 +4,25 @@ from pathlib import Path
 
 import geopandas as gpd
 import numpy as np
-import pandas as pd
 from sklearn.cluster import AgglomerativeClustering
 
 
-def read_geoparquet(
+def read_specific_geoparquet(
     directory_path: str,
+    timestep: int,
     file_pattern: str = "*.geoparquet",
 ) -> gpd.GeoDataFrame:
     """Read in multiple geoparquet files with timesteps in filenames."""
     directory = Path(directory_path)
 
     # Find all matching files
-    file_paths = list(directory.glob(file_pattern))
+    file_path = Path(directory) / f"output{timestep}.geoparquet"
 
-    dataframes = []
+    gdf = gpd.read_parquet(file_path)
 
-    for file in file_paths:
-        gdf = gpd.read_parquet(file)
+    gdf["timestep"] = int(timestep)
 
-        # Extract timestep from filename
-        filename = file.stem
-        timestep = filename.removeprefix("output")
-        gdf["timestep"] = int(timestep)
-
-        dataframes.append(gdf)
-
-    return pd.concat(dataframes, ignore_index=True)
+    return gdf
 
 
 def language_classification(
@@ -42,7 +34,7 @@ def language_classification(
         n_clusters=None,
         distance_threshold=dist_threshold,  # Threshold for clustering
         metric="hamming",
-        linkage="average",
+        linkage="complete",
     )  # Average linkage calculates over the mean of the distances between all points in the clusters
 
     return clustering.fit_predict(language_profiles)
@@ -65,12 +57,15 @@ def analyze_cluster_transitions(population: gpd.GeoDataFrame) -> dict[tuple[int,
     return transitions
 
 
-def run_classification(input_path: str, dist_threshold: float) -> None:
+def run_classification_single(input_path: str, dist_threshold: float) -> None:
     """Run the LECo model of language evolution."""
     # Read in the population data across all timesteps
-    population = read_geoparquet(input_path)
+    timestep = 100
+    population = read_specific_geoparquet(input_path, timestep)
 
-    for _timestep, stepdata in population.groupby("timestep"):
+    clustering = language_classification(np.stack(population["language_profile"]), dist_threshold)
+    print(np.unique(clustering).size)
+    """for _timestep, stepdata in population.groupby("timestep"):
         language_profiles = np.stack(stepdata["language_profile"])
         stepdata["language"] = language_classification(language_profiles, dist_threshold)
         population.loc[stepdata.index, "language"] = stepdata["language"]
@@ -81,4 +76,4 @@ def run_classification(input_path: str, dist_threshold: float) -> None:
         print(f"From {from_cluster} to {to_cluster}: {count} agents")
 
     # Save output to a single gpkg file
-    population.to_file(Path(input_path) / "population.gpkg", driver="GPKG")
+    population.to_file(Path(input_path) / "population.gpkg", driver="GPKG")"""
