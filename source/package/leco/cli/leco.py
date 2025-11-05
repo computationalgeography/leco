@@ -79,14 +79,15 @@ def main() -> None:
 Run leco model
 
 Usage:
-    {command} run --config <configfile> --output <outputdirectory>
-    {command} cluster --input <inputdirectory> [--method <all|speciation|single>] [--dist <distancethreshold>]
-    {command} plot --gpkg <gpkgfile> --config <configfile>
+    {command} run --config <configfile> --output <outputdirectory> [--debug]
+    {command} cluster --input <inputdirectory> [--method <all|speciation|single>] [--dist <distancethreshold>] [--debug]
+    {command} plot --gpkg <gpkgfile> --config <configfile> [--debug]
 
 Options:
   -h --help                         Show this screen and exit
   --version                         Show version and exit
   --config <configfile>             Path to the configuration TOML file
+  --debug                           Enable debug logging
   --dist <distthreshold>            Distance threshold to set clusters [default: 0.3]
   --gpkg <gpkgfile>                 Path to a gpkg file created during the clustering
   --input <inputdirectory>          Input directory containing the .geoparquet files created during the run
@@ -100,6 +101,11 @@ Typical workflow:
 """
 
     arguments = docopt.docopt(usage, sys.argv[1:], version=version)
+
+    if arguments["--debug"]:
+        import logging
+
+        logging.basicConfig(level=logging.DEBUG)
 
     if arguments["run"]:
         config_file = arguments["--config"]

@@ -94,9 +94,7 @@ def run_speciation(input_path: str, dist_threshold: float, stepsize: int = 1) ->
             continue
 
         new_step = population[population["timestep"] == timestep]
-        old_step = population[
-            population["timestep"] == (timestep - 1)
-        ]  ### CHANGE THIS LATER TO VALUE YOU CAN GIVE IN
+        old_step = population[population["timestep"] == (timestep - 1)]
         # max_parent_id = old_step["id"].max() if not old_step.empty else 0
         languages = old_step["language"].unique()
         for lang in languages:
@@ -113,6 +111,10 @@ def run_speciation(input_path: str, dist_threshold: float, stepsize: int = 1) ->
             if agent_mask.sum() == 0:
                 # No agents remain from this language in the new timestep
                 continue
+            if agent_mask.sum() == 1:
+                # Only one agent remains
+                new_step.loc[agent_mask, "language"] = lang
+                continue
 
             # Extract language profiles of the agents of interest
             new_profiles = np.stack(new_step.loc[agent_mask, "language_profile"])
@@ -126,18 +128,24 @@ def run_speciation(input_path: str, dist_threshold: float, stepsize: int = 1) ->
                 # clusters = KMeans(n_clusters=2, random_state=0).fit_predict(new_profiles)
                 clusters = split_cluster_agglomerative(new_profiles, dist_threshold)
                 # Get the indices in the dataframe in new_step that correspond to these agents
-                agent_indices = new_step.index[agent_mask]
+                agent_indices = new_step.index[agent_mask]  ## WHY DO I DO THIS
 
-                unique_labels = np.unique(clusters)
+                # Find the number of new languages created and the counts of each language
+                nr_new_languages, counts = np.unique(clusters, return_counts=True)
+                # Find the largest cluster to retain the original language ID
+                # largest_cluster = np.argmax(counts)
 
                 logging.debug(
-                    f"Timestep {timestep}, Lang {lang}: {agent_mask.sum()} agents split into {len(unique_labels)} clusters"
+                    f"Timestep {timestep}, Lang {lang}: {agent_mask.sum()} agents split into {len(nr_new_languages)} clusters"
                 )
                 logging.debug(
-                    f"  Current max_lang: {max_lang}, will create {len(unique_labels) - 1} new languages"
+                    f"  Current max_lang: {max_lang}, will create {len(nr_new_languages) - 1} new languages"
                 )
 
-                for i, label in enumerate(unique_labels):
+                ### OR: assign old language ID to largest cluster. Check if smaller clusters are coherent with neighboring languages clusters.
+                ### But then these clusters have to be final...
+
+                for i, label in enumerate(nr_new_languages):
                     selected_idx = agent_indices[clusters == label]
                     logging.debug(selected_idx)
                     if i == 0:
@@ -145,6 +153,10 @@ def run_speciation(input_path: str, dist_threshold: float, stepsize: int = 1) ->
                         new_step.loc[selected_idx, "language"] = int(lang)
                     else:
                         # Subsequent clusters get new language IDs
+                        ### or keep these seperated and only once you've been through all old languages
+                        ### you try to cluster these again to the bigger ones / together
+                        ### but is together valid? merging? --> maybe in a dialect continuum it is.
+                        ### and then assign? maybe split these two steps
                         max_lang += 1  # Increment BEFORE assigning
                         new_step.loc[selected_idx, "language"] = int(max_lang)
                         logging.debug(max_lang)
