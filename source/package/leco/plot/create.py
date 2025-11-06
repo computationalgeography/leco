@@ -1,5 +1,7 @@
 """Create plots of the leco model output."""
 
+from pathlib import Path
+
 import geopandas as gpd
 import logging
 import matplotlib as mpl
@@ -44,19 +46,19 @@ def create_colormap(
 
 
 def plot(
-    input_file: list[str] | str,
+    data: Path,
     parameters: dict,
 ) -> None:
     """Create plots of the leco model output."""
-    population = gpd.read_file(input_file)
+    population = gpd.read_file(data)
 
     cmap, lang_to_index = create_colormap(population.language, parameters["initialization"]["seed"])
 
     logging.debug("Create summarizing plots of the leco model output")
-    plot_summaries(input_file, cmap, lang_to_index)
+    plot_summaries(data, cmap, lang_to_index)
 
     logging.debug("Create animation of the leco model output")
-    plot_animation(input_file, parameters, cmap)
+    plot_animation(data, parameters, cmap)
 
     logging.debug("Create 3D interactive plot of the leco model output")
-    plot_3d_fig(input_file, cmap)
+    plot_3d_fig(data, cmap)

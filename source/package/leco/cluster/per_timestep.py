@@ -8,15 +8,13 @@ from sklearn.cluster import AgglomerativeClustering
 
 
 def read_specific_geoparquet(
-    directory_path: str,
+    directory: Path,
     timestep: int,
     file_pattern: str = "*.geoparquet",
 ) -> gpd.GeoDataFrame:
     """Read in multiple geoparquet files with timesteps in filenames."""
-    directory = Path(directory_path)
-
     # Find all matching files
-    file_path = Path(directory) / f"output{timestep}.geoparquet"
+    file_path = directory / f"output{timestep}.geoparquet"
 
     gdf = gpd.read_parquet(file_path)
 
@@ -57,11 +55,11 @@ def analyze_cluster_transitions(population: gpd.GeoDataFrame) -> dict[tuple[int,
     return transitions
 
 
-def run_classification_single(input_path: str, dist_threshold: float) -> None:
+def classify_single(directory: Path, dist_threshold: float) -> None:
     """Run the LECo model of language evolution."""
     # Read in the population data across all timesteps
     timestep = 100
-    population = read_specific_geoparquet(input_path, timestep)
+    population = read_specific_geoparquet(directory, timestep)
 
     clustering = language_classification(np.stack(population["language_profile"]), dist_threshold)
     print(np.unique(clustering).size)
@@ -76,4 +74,4 @@ def run_classification_single(input_path: str, dist_threshold: float) -> None:
         print(f"From {from_cluster} to {to_cluster}: {count} agents")
 
     # Save output to a single gpkg file
-    population.to_file(Path(input_path) / "population.gpkg", driver="GPKG")"""
+    population.to_file(directory / "population.gpkg", driver="GPKG")"""

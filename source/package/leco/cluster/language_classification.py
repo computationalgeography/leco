@@ -9,12 +9,10 @@ from sklearn.cluster import AgglomerativeClustering
 
 
 def read_geoparquet(
-    directory_path: str,
+    directory: Path,
     file_pattern: str = "*.geoparquet",
 ) -> gpd.GeoDataFrame:
     """Read in multiple geoparquet files with timesteps in filenames."""
-    directory = Path(directory_path)
-
     # Find all matching files
     file_paths = list(directory.glob(file_pattern))
 
@@ -59,10 +57,10 @@ def dynamic_clustering(population: gpd.GeoDataFrame, dist_threshold: float) -> g
     return pd.concat(clustered_dfs, ignore_index=True)
 
 
-def run_classification(input_path: str, dist_threshold: float) -> None:
+def classify_all(directory: Path, dist_threshold: float) -> None:
     """Run the LECo model of language evolution."""
     # Read in the population data across all timesteps
-    population = read_geoparquet(input_path)
+    population = read_geoparquet(directory)
 
     # Cluster the language profiles into languages based on the distance threshold
     population["language"] = language_classification(
@@ -71,4 +69,4 @@ def run_classification(input_path: str, dist_threshold: float) -> None:
     )
 
     # Save output to a single gpkg file
-    population.to_file(Path(input_path) / "population.gpkg", driver="GPKG")
+    population.to_file(directory / "population.gpkg", driver="GPKG")

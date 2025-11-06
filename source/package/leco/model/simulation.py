@@ -37,7 +37,7 @@ def mutate_profile(
     return list(mutated_profiles)
 
 
-def run_model(p: dict, output_run: str) -> None:
+def simulate(p: dict, directory: Path) -> None:
     """Run the LECo model of Linguistic Evolutionary COmputations."""
     # Initialize seed
     rng = np.random.default_rng(p["initialization"]["seed"])
@@ -62,9 +62,8 @@ def run_model(p: dict, output_run: str) -> None:
         rng,
     )
 
-    if output_run:
-        # Write initialization dataframe to a .geoparquet file
-        population.to_parquet(Path(output_run) / "output000.geoparquet")
+    # Write initialization dataframe to a .geoparquet file
+    population.to_parquet(directory / "output000.geoparquet")
 
     # Keep track of the maximum ID for agent births
     max_id = population["id"].max()
@@ -111,10 +110,9 @@ def run_model(p: dict, output_run: str) -> None:
         )
 
         # Save output per timestep to geoparquet file
-        if output_run:
-            population.to_parquet(
-                Path(output_run) / f"output{step:03d}.geoparquet",
-            )
+        population.to_parquet(
+            directory / f"output{step:03d}.geoparquet",
+        )
 
 
 # %%

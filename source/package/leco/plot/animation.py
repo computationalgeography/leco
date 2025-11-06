@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from shapely import Polygon
 
-from leco.model.initialization import initialize_barrier
+from ..model.initialization import initialize_barrier
 
 
 def prepare_animation_data(population: gpd.GeoDataFrame) -> list[dict]:

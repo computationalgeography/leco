@@ -1,75 +1,75 @@
 """Command line interface for leco model."""
 
+import logging
 import shutil
 import sys
-from datetime import datetime
 from pathlib import Path
 
 import docopt
 import tomllib
 
-from leco.cluster.language_classification import run_classification
-from leco.cluster.per_timestep import run_classification_single
-from leco.cluster.speciation import run_speciation
-from leco.model.main import run_model
-from leco.plot.main import plot
-from leco.version import __version__ as version
+from ..cluster.language_classification import classify_all
+from ..cluster.per_timestep import classify_single
+from ..cluster.speciation import speciate
+from ..model.simulation import simulate
+from ..plot.create import plot
+from ..version import __version__ as version
 
 from .main import main_function
 
 
 @main_function
-def run_leco(config_file: str, output_path: str) -> None:
+def run_leco(arguments: dict) -> None:
     """Run the leco model with specified configuration."""
-    config = load_config(config_file)
-    # Create a subdirectory for the specific run in the output path
-    output_dir = create_run_dir(output_path)
+    configuration_path = Path(arguments["<configfile>"])
+    # Load the parameters in dictionary from configuration file
+    configuration = load_config(configuration_path)
+    # Create a directory to store the results
+    directory = create_directory(arguments["<directory>"])
+
     # Store a copy of the configuration file iin the run directory
-    shutil.copy2(config_file, Path(output_dir) / "config.toml")
+    shutil.copy2(configuration_path, directory / "configuration.toml")
+
     # Run the leco model
-    run_model(config, output_dir)
+    simulate(configuration, directory)
 
 
-def lang_classification(input_dir: str, method: str, dist_threshold: float) -> None:
+def cluster_languages(arguments: dict) -> None:
     """Run language classification on the leco model output for a specified method."""
-    if method == "all":
-        # 3D clustering over all timesteps
-        run_classification(input_dir, dist_threshold)
+    method = arguments["--method"] or "all"
+    distance_threshold = float(arguments["--distance"] or 0.3)
+    directory = Path(arguments["<directory>"])
 
-    if method == "single":
-        # 2D clustering per timestep [Note: under development]
-        run_classification_single(input_dir, dist_threshold)
+    # Dictionary maps methods to their corresponding functions
+    classification_by_method = {
+        "all": classify_all,  # 3D clustering over all timesteps
+        "single": classify_single,  # 2D clustering per timestep [Note: under development]
+        "speciation": speciate,  # Feed-forward speciation-based clustering [Note: under development]
+    }
 
-    if method == "speciation":
-        # Feed-forward speciation-based clustering [Note: under development]
-        run_speciation(input_dir, dist_threshold)
+    # Check if method is valid and call the corresponding function
+    classification_by_method[method](directory, distance_threshold)
 
 
-def plot_results(data: str, config_file: str) -> None:
+def plot_results(arguments: dict) -> None:
     """Create plots of the leco model output."""
-    config = load_config(config_file)
-    plot(data, config)
+    configuration = load_config(arguments["<configfile>"])
+    gpkg_file = Path(arguments["<gpkgfile>"])
+    plot(gpkg_file, configuration)
 
 
-def load_config(config_file: str) -> dict:
+def load_config(config_file: Path) -> dict:
     """Load TOML config with error handling."""
     with Path.open(config_file, "rb") as f:
         return tomllib.load(f)
 
 
-def create_run_dir(outputpath: str, suffix: str | None = None) -> str:
-    """Create output directory for specific run and store parameter values in a text file."""
-    # Create the directory if it does not exist yet
-    base = Path(outputpath)
-    base.mkdir(exist_ok=True, parents=True)
+def create_directory(directory_path: str) -> Path:
+    """Create directory with name provided by user input."""
+    directory = Path(directory_path)
+    directory.mkdir(parents=True, exist_ok=False)
 
-    # Create a subdirectory for each run named after date and time
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-    dir_name = f"results_{timestamp}_{suffix}" if suffix else f"results_{timestamp}"
-    output_dir_run = base / dir_name
-    output_dir_run.mkdir(parents=True, exist_ok=True)
-
-    return output_dir_run
+    return directory
 
 
 def main() -> None:
@@ -79,47 +79,37 @@ def main() -> None:
 Run leco model
 
 Usage:
-    {command} run --config <configfile> --output <outputdirectory> [--debug]
-    {command} cluster --input <inputdirectory> [--method <all|speciation|single>] [--dist <distancethreshold>] [--debug]
-    {command} plot --gpkg <gpkgfile> --config <configfile> [--debug]
+    {command} run [--debug] <configfile> <directory>
+    {command} cluster [--debug] [--method <all|speciation|single>] [--distance <distancethreshold>] <directory>
+    {command} plot [--debug] <configfile> <gpkgfile>
 
 Options:
   -h --help                         Show this screen and exit
   --version                         Show version and exit
-  --config <configfile>             Path to the configuration TOML file
+  <configfile>                      Path to the configuration TOML file
   --debug                           Enable debug logging
-  --dist <distthreshold>            Distance threshold to set clusters [default: 0.3]
-  --gpkg <gpkgfile>                 Path to a gpkg file created during the clustering
-  --input <inputdirectory>          Input directory containing the .geoparquet files created during the run
+  --distance <distthreshold>        Distance threshold to set clusters [default: 0.3]
+  <gpkgfile>                        Path to a gpkg file created during the clustering
+  <directory>                       Directory to store/read the model output
   --method <all|speciation|single>  Clustering method to use
-  --output <outputdirectory>        Output directory
 
 Typical workflow:
-    {command} run --config C:/home/PhD/leco_model/configuration.toml --output C:/home/PhD/leco_model/output/
-    {command} cluster --input C:/home/PhD/leco_model/output/results_20251023 --method speciation --dist 0.2
-    {command} plot --gpkg C:/home/PhD/leco_model/output/results_20251023/population.gpkg --config C:/home/PhD/leco_model/output/results_20251023/config.toml
+    {command} run configuration.toml results_20251023
+    {command} cluster --method speciation --distance 0.2 results_20251023
+    {command} plot configuration.toml population.gpkg
 """
 
     arguments = docopt.docopt(usage, sys.argv[1:], version=version)
 
     if arguments["--debug"]:
-        import logging
-
         logging.basicConfig(level=logging.DEBUG)
 
-    if arguments["run"]:
-        config_file = arguments["--config"]
-        output_path = arguments["--output"]
-        run_leco(config_file, output_path)
+    command_to_function = {
+        "run": run_leco,
+        "cluster": cluster_languages,
+        "plot": plot_results,
+    }
 
-    if arguments["cluster"]:
-        directory = arguments["--input"]
-        # Get method and distance threshold if given, oterwise use defaults
-        method = arguments.get("--method", "all")
-        dist_threshold = float(arguments.get("--dist", 0.3))
-        lang_classification(directory, method, dist_threshold)
-
-    if arguments["plot"]:
-        file = arguments["--gpkg"]
-        config = arguments["--config"]
-        plot_results(file, config)
+    # Check if method is valid and call the corresponding function
+    active_command = next(cmd for cmd in command_to_function if arguments[cmd])
+    command_to_function[active_command](arguments)

@@ -14,12 +14,10 @@ from sklearn.cluster import AgglomerativeClustering
 
 
 def read_geoparquet(
-    directory_path: str,
+    directory: Path,
     file_pattern: str = "*.geoparquet",
 ) -> gpd.GeoDataFrame:
     """Read in multiple geoparquet files with timesteps in filenames."""
-    directory = Path(directory_path)
-
     # Find all matching files
     file_paths = list(directory.glob(file_pattern))
 
@@ -78,10 +76,10 @@ def split_cluster_agglomerative(language_profiles: np.ndarray, dist_threshold):
     return labels
 
 
-def run_speciation(input_path: str, dist_threshold: float, stepsize: int = 1) -> None:
+def speciate(directory: Path, dist_threshold: float, stepsize: int = 1) -> None:
     """Run the LECo model of language evolution."""
     # Read in the population data across all timesteps
-    population = read_geoparquet(input_path)
+    population = read_geoparquet(directory)
     # Initialize language column in integer type
     population["language"] = -1
     max_lang = 0
@@ -165,4 +163,4 @@ def run_speciation(input_path: str, dist_threshold: float, stepsize: int = 1) ->
         population.loc[population["timestep"] == timestep, "language"] = new_step["language"].astype(int)
 
     # Save output to a single gpkg file
-    population.to_file(Path(input_path) / "populationspeciationTest.gpkg", driver="GPKG")
+    population.to_file(directory / "populationspeciationTest.gpkg", driver="GPKG")

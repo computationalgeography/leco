@@ -1,7 +1,7 @@
 """Plot results from leco model."""
 
 from .animation import create_animation
-from .main import create_colormap, plot
+from .create import create_colormap, plot
 from .summary import calculate_tick_intervals, language_number_plot
 from .threed_interactive import plot_3d_fig
 from .version import __version__
