@@ -50,13 +50,13 @@ def calculate_tick_intervals(min_val: int, max_val: int, max_ticks: int = 10) ->
 
 def language_number_plot(
     output_path: str,
-    languagenumber: list[int],
+    number_languages: list[int],
 ) -> None:
     """Plot number of languages over time."""
-    nr_steps = len(languagenumber)
+    nr_steps = len(number_languages)
 
-    plt.plot(languagenumber, marker="o")
-    plt.xlabel("Timestep")
+    plt.plot(number_languages, marker="o")
+    plt.xlabel("Time step")
     plt.ylabel("Number of Languages")
 
     # Calculate tick interval based on number of time steps
@@ -64,7 +64,7 @@ def language_number_plot(
     plt.xticks(x_ticks, [str(i) for i in x_ticks])
 
     # Calculate tick interval based on number of languages
-    max_languages = max(languagenumber)
+    max_languages = max(number_languages)
     y_ticks = calculate_tick_intervals(0, max_languages, max_ticks=10)
 
     plt.yticks(y_ticks, [str(i) for i in y_ticks])
@@ -82,12 +82,12 @@ def language_counts_plot(
     lang_to_index: dict[int, int],
 ) -> None:
     """Plot number of agents speaking a language over time."""
-    # Sort the languages by most to least spoken at the first timestep,
+    # Sort the languages by most to least spoken at the first time step,
     # so most spoken languages are shown on the bottom
     sorted_cols = language_counts.iloc[0].sort_values(ascending=False).index
     language_counts = language_counts[sorted_cols]
 
-    # Scale the index to represent years for each timstep (assuming each timestep is 20 years)
+    # Scale the index to represent years for each time step (assuming each time step is 20 years)
     language_counts.index = language_counts.index * 20
 
     # Create color list that matches sorted language columns
@@ -121,15 +121,15 @@ def plot_summaries(
     lang_to_index: dict[int, int] | None,
 ) -> None:
     """Create summarizing plots of the leco model output."""
-    # Read in the population data across all timesteps
+    # Read in the population data across all time steps
     population = gpd.read_file(input_file)
 
     output_path = Path(input_file).parent
 
     # Create a figure showing the number of languages over time
-    languagenumber = population.groupby("timestep")["language"].nunique().tolist()
-    language_number_plot(output_path, languagenumber)
+    number_languages = population.groupby("time_step")["language"].nunique().tolist()
+    language_number_plot(output_path, number_languages)
 
     # Create a figure showing the number of agents speaking a language over time
-    language_counts = population.groupby(["timestep", "language"])["id"].count().unstack(fill_value=0)
+    language_counts = population.groupby(["time_step", "language"])["id"].count().unstack(fill_value=0)
     language_counts_plot(language_counts, output_path, cmap, lang_to_index)

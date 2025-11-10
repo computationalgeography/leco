@@ -4,7 +4,7 @@ from .initialization import initialize_barrier, initialize_population
 from .interaction import interact
 from .simulation import mutate_profile, simulate
 from .movement import move
-from .popdynamics import population_dynamics
+from .population_dynamics import population_dynamics
 from .version import __version__
 
 __all__ = [

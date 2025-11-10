@@ -14,16 +14,16 @@ from ..model.initialization import initialize_barrier
 
 
 def prepare_animation_data(population: gpd.GeoDataFrame) -> list[dict]:
-    """Create a list of dictionaries (frames) containing for each timestep the population data."""
+    """Create a list of dictionaries (frames) containing for each time_step the population data."""
     animation_data = []
-    for timestep, group in population.groupby("timestep"):
-        frame_data = {"timestep": timestep, "population": group.copy()}
+    for time_step, group in population.groupby("time_step"):
+        frame_data = {"time_step": time_step, "population": group.copy()}
         animation_data.append(frame_data)
 
     return animation_data
 
 
-def create_scatterframe(
+def create_scatter_frame(
     data: gpd.GeoDataFrame,
     ax: plt.subplot,
     cmap: mpl.colors.ListedColormap,
@@ -32,8 +32,8 @@ def create_scatterframe(
     barrier: Polygon | None,
 ) -> list:
     """Create a scatter plot for each frame of the animation."""
-    timestep = data["timestep"]
-    timestep = timestep * 20  # Scale to represent years (assuming each timestep is 20 years)
+    time_step = data["time_step"]
+    time_step = time_step * 20  # Scale to represent years (assuming each time_step is 20 years)
     population = data["population"]
 
     ax.clear()
@@ -66,7 +66,7 @@ def create_scatterframe(
     ax.set_xlabel("X Position (km)", size=13)
     ax.set_ylabel("Y Position (km)", size=13)
     ax.tick_params(axis="both", labelsize=10)
-    ax.set_title(f"Year {timestep}", size=16)
+    ax.set_title(f"Year {time_step}", size=16)
 
     return [scatter]
 
@@ -93,7 +93,7 @@ def create_animation(
     # Create the animation using the FuncAnimation class
     anim = FuncAnimation(
         fig,
-        create_scatterframe,  # Function to create each frame
+        create_scatter_frame,  # Function to create each frame
         fargs=(
             ax,
             cmap,
@@ -129,7 +129,7 @@ def plot_animation(
     cmap: mpl.colors.ListedColormap,
 ) -> None:
     """Create an animation of the leco model output."""
-    # Read in the population data across all timesteps
+    # Read in the population data across all time_steps
     population = gpd.read_file(input_file)
 
     # Access parameters from the output directory

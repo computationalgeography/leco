@@ -1,4 +1,4 @@
-"""Cluster language profiles into languages per timestep."""
+"""Cluster language profiles into languages per time_step."""
 
 from pathlib import Path
 
@@ -14,7 +14,7 @@ def read_geoparquet(
     directory: Path,
     file_pattern: str = "*.geoparquet",
 ) -> gpd.GeoDataFrame:
-    """Read in multiple geoparquet files with timesteps in filenames."""
+    """Read in multiple geoparquet files with time_steps in filenames."""
     # Find all matching files
     file_paths = list(directory.glob(file_pattern))
 
@@ -23,10 +23,10 @@ def read_geoparquet(
     for file in file_paths:
         gdf = gpd.read_parquet(file)
 
-        # Extract timestep from filename
+        # Extract time_step from filename
         filename = file.stem
-        timestep = filename.removeprefix("output")
-        gdf["timestep"] = int(timestep)
+        time_step = filename.removeprefix("output")
+        gdf["time_step"] = int(time_step)
 
         dataframes.append(gdf)
 
@@ -55,7 +55,7 @@ def check_cluster_coherence(language_profiles: np.ndarray[int], dist_threshold) 
 
 
 def initialize_languages(start_population: gpd.GeoDataFrame, dist_threshold: float) -> np.ndarray[int]:
-    """Initialize languages for the first timestep based on coherence."""
+    """Initialize languages for the first time_step based on coherence."""
     language_profiles = np.stack(start_population["language_profile"])
     clusters = language_classification(language_profiles, dist_threshold)
 
@@ -128,47 +128,47 @@ def speciate(
     merge: bool = False,
 ) -> None:
     """Feed-forward clustering of the language profiles into languages following evolutionary speciation processes."""
-    # Read the population data across all timesteps
+    # Read the population data across all time_steps
     population = read_geoparquet(directory)
     # Initialize language column as -1
     population["language"] = -1
     # Keep track of the maximum language ID assigned
     max_language_id = 0
 
-    # Iterate over each timestep and cluster language profiles
-    for timestep in population["timestep"].unique():
-        if timestep == 0:
-            # First timestep: initialize the start languages
-            clusters = initialize_languages(population[population["timestep"] == 0], dist_threshold)
-            population.loc[population["timestep"] == 0, "language"] = clusters.astype(int)
+    # Iterate over each time_step and cluster language profiles
+    for time_step in population["time_step"].unique():
+        if time_step == 0:
+            # First time_step: initialize the start languages
+            clusters = initialize_languages(population[population["time_step"] == 0], dist_threshold)
+            population.loc[population["time_step"] == 0, "language"] = clusters.astype(int)
             max_language_id = clusters.max()
             continue
 
-        new_step = population[population["timestep"] == timestep]  # .copy()
-        old_step = population[population["timestep"] == (timestep - 1)]
+        new_step = population[population["time_step"] == time_step]  # .copy()
+        old_step = population[population["time_step"] == (time_step - 1)]
 
-        # Clustering is based on the languages present in the previous timestep
+        # Clustering is based on the languages present in the previous time_step
         old_languages = old_step["language"].unique()
-        # Collect the new languaes formed in this timestep
+        # Collect the new languages formed in this time_step
         new_clusters = []
 
-        # Loop through the languages present in the previous timestep
+        # Loop through the languages present in the previous time_step
         for language in old_languages:
-            # Get IDs of agents speaking this language in previous timestep
+            # Get IDs of agents speaking this language in previous time_step
             lang_old_agent_ids = old_step[old_step["language"] == language]["id"]
-            # Get IDs of newborn agents that are born in the current timestep
-            # and whose parents spoke this language in previous timestep
+            # Get IDs of newborn agents that are born in the current time_step
+            # and whose parents spoke this language in previous time_step
             lang_newborn_agent_ids = new_step[
                 (~new_step["id"].isin(old_step["id"])) & (new_step["parent_id"].isin(lang_old_agent_ids))
             ]["id"]
             # Combine old and newborn agent IDs
             lang_agent_ids = pd.concat([lang_old_agent_ids, lang_newborn_agent_ids])
 
-            # Generate mask of previous speakers in the new timestep
+            # Generate mask of previous speakers in the new time_step
             agent_mask = new_step["id"].isin(lang_agent_ids)
 
             if agent_mask.sum() == 0:
-                # No agents remain from this language in the new timestep: extinction
+                # No agents remain from this language in the new time_step: extinction
                 continue
             if agent_mask.sum() == 1:
                 # Only one agent remains, assign the language directly
@@ -196,7 +196,7 @@ def speciate(
                 unique_labels, counts = np.unique(clusters, return_counts=True)
 
                 if similar is True:
-                    # Find the cluster that is most similar to the original language to retain original lanuage ID
+                    # Find the cluster that is most similar to the original language to retain original language ID
                     # Calculate the modal profile from the speakers of the original language
                     old_profiles = np.stack(
                         old_step[old_step["id"].isin(lang_old_agent_ids)]["language_profile"]
@@ -227,7 +227,7 @@ def speciate(
                         max_language_id += 1
                         new_clusters.append([selected_idx.tolist(), int(max_language_id)])
 
-        # Once all previous languages have been processed, check if new clusers overlap in similarity with existing languages
+        # Once all previous languages have been processed, check if new clusters overlap in similarity with existing languages
         if merge is False:
             # Merge defines whether creole languages can arise: a new language is formed by combining existing languages
             # if merge is set to false, only language shifts can take place: agents shifting to already existing languages
@@ -235,7 +235,7 @@ def speciate(
 
         for agent_idx_list, label in new_clusters:
             if len(agent_idx_list) == 0:
-                logging.debug(f"No agents in cluster {label} at timestep {timestep}, skipping.")
+                logging.debug(f"No agents in cluster {label} at time_step {time_step}, skipping.")
                 continue
 
             if merge is True:
@@ -266,18 +266,18 @@ def speciate(
                     # Merge clusters by assigning the other language label
                     new_step.loc[agent_idx_list, "language"] = neighbor_language
                     logging.debug(
-                        f"Merging cluster {label} into existing language {neighbor_language} at timestep {timestep}"
+                        f"Merging cluster {label} into existing language {neighbor_language} at time_step {time_step}"
                     )
                     break  # Exit after merging to avoid multiple merges
 
             # If agents in the new cluster have not been assigned a language yet, assign a new language ID
             language_values = new_step.loc[agent_idx_list, "language"]
             if (language_values.isna() | (language_values == -1)).all():
-                logging.debug(f"Assigning new language {label} to cluster at timestep {timestep}")
+                logging.debug(f"Assigning new language {label} to cluster at time_step {time_step}")
                 new_step.loc[agent_idx_list, "language"] = label
 
         # Update population with new language assignments
-        population.loc[population["timestep"] == timestep, "language"] = new_step["language"].astype(int)
+        population.loc[population["time_step"] == time_step, "language"] = new_step["language"].astype(int)
 
     # Save output to a single gpkg file
     population.to_file(directory / "population.gpkg", driver="GPKG")

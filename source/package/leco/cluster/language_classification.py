@@ -12,7 +12,7 @@ def read_geoparquet(
     directory: Path,
     file_pattern: str = "*.geoparquet",
 ) -> gpd.GeoDataFrame:
-    """Read in multiple geoparquet files with timesteps in filenames."""
+    """Read in multiple geoparquet files with time steps in filenames."""
     # Find all matching files
     file_paths = list(directory.glob(file_pattern))
 
@@ -21,10 +21,10 @@ def read_geoparquet(
     for file in file_paths:
         gdf = gpd.read_parquet(file)
 
-        # Extract timestep from filename
+        # Extract time step from filename
         filename = file.stem
-        timestep = filename.removeprefix("output")
-        gdf["timestep"] = int(timestep)
+        time_step = filename.removeprefix("output")
+        gdf["time_step"] = int(time_step)
 
         dataframes.append(gdf)
 
@@ -47,19 +47,19 @@ def language_classification(
 
 
 def dynamic_clustering(population: gpd.GeoDataFrame, dist_threshold: float) -> gpd.GeoDataFrame:
-    """Cluster language profiles into languages for each timestep separately."""
+    """Cluster language profiles into languages for each time step separately."""
     clustered_dfs = []
 
-    for _timestep, stepdata in population.groupby("timestep"):
-        language_profiles = np.stack(stepdata["language_profile"])
-        stepdata["language"] = language_classification(language_profiles, dist_threshold)
+    for _time_step, step_data in population.groupby("time_step"):
+        language_profiles = np.stack(step_data["language_profile"])
+        step_data["language"] = language_classification(language_profiles, dist_threshold)
 
     return pd.concat(clustered_dfs, ignore_index=True)
 
 
 def classify_all(directory: Path, dist_threshold: float) -> None:
     """Run the LECo model of language evolution."""
-    # Read in the population data across all timesteps
+    # Read in the population data across all time steps
     population = read_geoparquet(directory)
 
     # Cluster the language profiles into languages based on the distance threshold

@@ -30,15 +30,15 @@ def set_birth_rate(
     pop_dynamics: dict[float, float, bool, int, float],
     init_population: int,
     nr_agents: int,
-    timestep: int,
+    time_step: int,
 ) -> float:
-    """Calculate the birth rate of the current timestep."""
+    """Calculate the birth rate of the current time_step."""
     if pop_dynamics["logistic_growth"] is False:
         # if logistic growth is not applied, birth rate is constant
         return pop_dynamics["birth_rate"]
 
     # If the end of the logistic growth period is reached, return the constant birth rate
-    if pop_dynamics["end_growth_time"] <= timestep:
+    if pop_dynamics["end_growth_time"] <= time_step:
         return pop_dynamics["birth_rate"]
 
     # If logistic growth is applied and end of growth period is not reached, calculate the dynamic birth rate
@@ -56,7 +56,7 @@ def population_dynamics(
     population: gpd.GeoDataFrame,
     pop_dynamics: dict[float, float, bool, int, float],
     init_population: int,
-    timestep: int,
+    time_step: int,
     max_id: int,
     rng: np.random.default_rng,
 ) -> gpd.GeoDataFrame:
@@ -78,7 +78,7 @@ def population_dynamics(
         pop_dynamics,
         init_population,
         nr_agents,
-        timestep,
+        time_step,
     )
 
     # Determine for every agent whether it will reproduce based on the birthrate

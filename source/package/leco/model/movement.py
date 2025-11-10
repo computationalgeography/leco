@@ -17,7 +17,7 @@ def movement_direction(nr_agents: int, rng: np.random.default_rng) -> np.ndarray
     )  # Get a random angle in radians between 0 and 2π for each agent
 
 
-def change_pos(speed: float, angle: float, axis: str) -> np.ndarray[float]:
+def change_position(speed: float, angle: float, axis: str) -> np.ndarray[float]:
     """Calculate the change in position based on speed and angle for a specified axis."""
     if axis == "x":
         return speed * np.cos(angle)  # Change in x position
@@ -40,16 +40,16 @@ def move_axis(
 
 
 def find_intersecting_movements(
-    old_coor: gpd.GeoSeries.geometry,
-    new_coor: gpd.GeoSeries.geometry,
+    old_coordinates: gpd.GeoSeries.geometry,
+    new_coordinates: gpd.GeoSeries.geometry,
     barrier: Polygon,
 ) -> np.ndarray[bool]:
     """Find which agent movements intersect with the barrier."""
     # Create movement lines from old to new positions
     movement_lines = gpd.GeoSeries(
-        # Gives error if old_coor and new_coor have different lengths
-        [LineString([p1, p2]) for p1, p2 in zip(old_coor, new_coor, strict=True)],
-        index=old_coor.index,
+        # Gives error if old_coordinates and new_coordinates have different lengths
+        [LineString([p1, p2]) for p1, p2 in zip(old_coordinates, new_coordinates, strict=True)],
+        index=old_coordinates.index,
     )
 
     # Find which movement lines intersect the barrier
@@ -62,15 +62,15 @@ def movement_across_barrier(
     position: gpd.GeoSeries.geometry,
     new_position: gpd.GeoSeries.geometry,
     barrier: Polygon,
-    bar_impermeability: float,
+    impermeability: float,
     rng: np.random.default_rng,
 ) -> gpd.GeoSeries.geometry:
     """Handle movement across a barrier by stopping agents at the barrier."""
     # Check if the barrier impermeability falls within the range of [0,1]
-    if bar_impermeability < 0 or bar_impermeability > 1:
+    if impermeability < 0 or impermeability > 1:
         raise ValueError(
-            f"The barrier impermeability value {bar_impermeability} must be between 0 and 1.".format(
-                bar_impermeability,
+            f"The barrier impermeability value {impermeability} must be between 0 and 1.".format(
+                impermeability,
             ),
         )
 
@@ -85,8 +85,8 @@ def movement_across_barrier(
     intersecting_indices = np.where(intersecting)[0]
 
     # Generate impermeability masks for the intersecting agents based on the barrier impermeability
-    impeded_prob = rng.random(len(intersecting_indices))
-    impeded_agents = intersecting_indices[impeded_prob < bar_impermeability]
+    impeded_probabilities = rng.random(len(intersecting_indices))
+    impeded_agents = intersecting_indices[impeded_probabilities < impermeability]
 
     # If none of the agents is impeded by the barrier, return new positions
     if not np.any(impeded_agents):
@@ -105,7 +105,7 @@ def movement_across_barrier(
 def move(
     position: gpd.GeoSeries.geometry,
     barrier: Polygon | None,
-    bar_impermeability: float,
+    impermeability: float,
     speed: float,
     space: list[float, float],
     rng: np.random.default_rng,
@@ -114,23 +114,23 @@ def move(
     angle = movement_direction(len(position), rng)  # Get random angles for all agents
     new_x = move_axis(
         position.x.values,
-        change_pos(speed, angle, "x"),
+        change_position(speed, angle, "x"),
         space[0],
     )  # Calculate the change in position along x axis and move
     new_y = move_axis(
         position.y.values,
-        change_pos(speed, angle, "y"),
+        change_position(speed, angle, "y"),
         space[1],
     )  # Calculate the change in position along y axis and move
     new_position = gpd.points_from_xy(new_x, new_y)
 
     # If there is no barrier or no impermeability from the barrier, return the new positions
-    if barrier is None or bar_impermeability == 0:
+    if barrier is None or impermeability == 0:
         return new_position
     return movement_across_barrier(
         position,
         new_position,
         barrier,
-        bar_impermeability,
+        impermeability,
         rng,
     )

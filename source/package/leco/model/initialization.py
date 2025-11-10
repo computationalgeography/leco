@@ -32,13 +32,13 @@ def initialize_barrier(
 
 
 def initialize_coordinates(
-    min_coor: float,
-    max_coor: float,
+    min_coordinates: float,
+    max_coordinates: float,
     nr_agents: int,
     rng: np.random.default_rng,
 ) -> np.ndarray[float]:
     """Randomly initialize coordinates along one axis within the specified range."""
-    return rng.uniform(low=min_coor, high=max_coor, size=nr_agents)
+    return rng.uniform(low=min_coordinates, high=max_coordinates, size=nr_agents)
 
 
 def initialize_positions(

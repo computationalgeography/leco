@@ -15,10 +15,10 @@ from shapely import (
 def nearest_neighbors(positions: np.ndarray[float], radius: float) -> list[np.ndarray[int]]:
     """Find all neighboring agents within a radius."""
     # Build a K-Dimensional tree (spatial index)
-    pos_kdt = KDTree(positions)
+    positions_kdt = KDTree(positions)
 
     # Find all neighbors within a radius around an agent
-    neighbors = pos_kdt.query_ball_point(positions, r=radius)
+    neighbors = positions_kdt.query_ball_point(positions, r=radius)
     # Remove self and store neighbors of every agent in list format
     return [[n for n in neighbor_list if n != i] for i, neighbor_list in enumerate(neighbors)]
 
@@ -29,7 +29,7 @@ def compute_interact_prob_neighbors(
     interact_attributes: dict[float, float, float],
     neighbors: np.ndarray[int],
     barrier: Polygon | None,
-    bar_impermeability: float,
+    impermeability: float,
 ) -> np.ndarray[float]:
     """Compute the interaction probability for neighbors of a single agent dependent on barrier presence."""
     # Get the position of the active agent
@@ -40,45 +40,44 @@ def compute_interact_prob_neighbors(
         return np.repeat(interact_attributes["partner_prob"], len(neighbors))
 
     # Create a Polygon area of the interaction radius
-    int_circle = agent_pos.buffer(interact_attributes["radius"])
+    interaction_circle = agent_pos.buffer(interact_attributes["radius"])
     # Find the area that is intersected by the barrier
-    impeded_area = int_circle.intersection(barrier)
+    impeded_area = interaction_circle.intersection(barrier)
 
     if impeded_area == 0:
-        # No intersection between barrier and radius, all neighbors have equal probability of partner_prob
-        return np.repeat(interact_attributes["partner_prob"], len(neighbors))
+        # No intersection between barrier and radius, all neighbors have equal probability of partner_probability
+        return np.repeat(interact_attributes["partner_probability"], len(neighbors))
 
-    # The neighbors on/behind the barrier have a lower probability to interact,
-    # proportional to the impermeability
-    barrier_prob = interact_attributes["partner_prob"] * (1.0 - bar_impermeability)
+    # The neighbors on/behind the barrier have a lower probability to interact, proportional to the impermeability
+    barrier_probability = interact_attributes["partner_probability"] * (1.0 - impermeability)
 
     if impeded_area.contains(agent_pos):
         # If the active agent is positioned on a barrier,
         # interaction with all of its neighbors has a lower probability
-        return np.repeat(barrier_prob, len(neighbors))
+        return np.repeat(barrier_probability, len(neighbors))
 
     # Select the area without barrier
-    int_area_withoutbar = int_circle.difference(barrier)
-    if int_area_withoutbar.is_empty:
+    interaction_area_no_barrier = interaction_circle.difference(barrier)
+    if interaction_area_no_barrier.is_empty:
         # Barrier completely covers the interaction area
-        valid_int_area = None
-    elif isinstance(int_area_withoutbar, MultiPolygon):
+        valid_interaction_area = None
+    elif isinstance(interaction_area_no_barrier, MultiPolygon):
         # Barrier has split the interaction area in two, keep the area where the agent resides
-        valid_int_area = next(
-            (geom for geom in int_area_withoutbar.geoms if geom.contains(agent_pos)),
+        valid_interaction_area = next(
+            (geom for geom in interaction_area_no_barrier.geoms if geom.contains(agent_pos)),
         )
-    elif isinstance(int_area_withoutbar, Polygon):
+    elif isinstance(interaction_area_no_barrier, Polygon):
         # Barrier has cut off a side of the area, keep the remaining area
-        valid_int_area = int_area_withoutbar
+        valid_interaction_area = interaction_area_no_barrier
 
     # Add for every neighbor the probability dependent on whether they are located in the valid_int_area
     nb_positions = get_coordinates(positions[neighbors])  # Get the positions of the neighbors
 
     # Check whether the neighbors reside on the reachable area
-    mask = vectorized.contains(valid_int_area, nb_positions[:, 0], nb_positions[:, 1])
+    mask = vectorized.contains(valid_interaction_area, nb_positions[:, 0], nb_positions[:, 1])
 
     # If they reside on the reachable area, assign the high probability, if not the low probability
-    return np.where(mask, interact_attributes["partner_prob"], barrier_prob)
+    return np.where(mask, interact_attributes["partner_prob"], barrier_probability)
 
 
 def interact(
@@ -86,7 +85,7 @@ def interact(
     interact_attributes: dict[float, float, float],
     positions: gpd.GeoDataFrame.geometry,
     barrier: Polygon | None,
-    bar_impermeability: float,
+    impermeability: float,
     rng: np.random.default_rng,
 ) -> np.ndarray[int]:
     """Interaction between agents whereby linguistic diffusion occurs."""
@@ -105,10 +104,10 @@ def interact(
         return list(new_profiles)
 
     # Generate interaction probabilities for all agents at once
-    interaction_probs = rng.random(
+    interaction_probabilities = rng.random(
         (nr_agents, max_neighbors),
     )  # The probability that an agent interact with each of its neighbors
-    diffusion_probs = rng.random(
+    diffusion_probabilities = rng.random(
         (nr_agents, max_neighbors, nr_meanings),
     )  # The probability that a form diffuses from a neighbor to an agent,
     # probabilities are taken for every meaning in the language profile
@@ -118,25 +117,27 @@ def interact(
         if len(neighbors) == 0:
             continue
 
-        # Compute the probabilities for an agent to interact with each of its neighbours,
+        # Compute the probabilities for an agent to interact with each of its neighbors,
         # based on the presence of a barrier
-        int_probs_nbs = compute_interact_prob_neighbors(
+        interaction_probabilities_nbs = compute_interact_prob_neighbors(
             agent_idx,
             positions,
             interact_attributes,
             neighbors,
             barrier,
-            bar_impermeability,
+            impermeability,
         )
         # Convert neighbor list to an array to make use of the masks
         neighbors_array = np.array(neighbors)
 
-        if len(neighbors_array) != len(int_probs_nbs):
+        if len(neighbors_array) != len(interaction_probabilities_nbs):
             logging.error("Error! Number of neighbors is not equal to the number of neighbor probabilities!!")
 
         # Based on the interaction probabilities, the agent interact with 'partner_prob' proportion
         # of their neighbors
-        interaction_mask = interaction_probs[agent_idx, : len(neighbors_array)] < int_probs_nbs
+        interaction_mask = (
+            interaction_probabilities[agent_idx, : len(neighbors_array)] < interaction_probabilities_nbs
+        )
         # Select the interaction partners
         interacting_neighbors = neighbors_array[interaction_mask]
 
@@ -147,14 +148,14 @@ def interact(
         rng.shuffle(interacting_neighbors)
 
         # Select the diffusion probabilities for the interacting neighbors
-        agent_diffusion_probs = diffusion_probs[agent_idx, : len(neighbors), :]
-        agent_diffusion_probs = agent_diffusion_probs[
+        agent_diffusion_probabilities = diffusion_probabilities[agent_idx, : len(neighbors), :]
+        agent_diffusion_probabilities = agent_diffusion_probabilities[
             interaction_mask
         ]  # Only keep the probabilities for the interacting neighbors
 
         # Determine which meanings from neighbors' language profiles will be diffused
         # based on the diffusion rate
-        diffusion_mask = agent_diffusion_probs < interact_attributes["diffusion_rate"]
+        diffusion_mask = agent_diffusion_probabilities < interact_attributes["diffusion_rate"]
 
         # Select the language profiles of the interacting neighbors
         neighbor_profiles = language_profiles[interacting_neighbors]
@@ -167,5 +168,5 @@ def interact(
                 new_profiles[agent_idx],
             )
 
-    # Return list format to add to geopanda's dataframe
+    # Return list format to add to geopandas dataframe
     return list(new_profiles)
