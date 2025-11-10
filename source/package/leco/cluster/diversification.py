@@ -119,7 +119,7 @@ def get_neighboring_languages(
     return neighboring_languages
 
 
-def speciate(
+def diversify(
     directory: Path,
     dist_threshold: float,
     radius: float = 20.0,
@@ -127,7 +127,7 @@ def speciate(
     similar: bool = True,
     merge: bool = False,
 ) -> None:
-    """Feed-forward clustering of the language profiles into languages following evolutionary speciation processes."""
+    """Feed-forward clustering of the language profiles into languages following evolutionary diversification processes."""
     # Read the population data across all time_steps
     population = read_geoparquet(directory)
     # Initialize language column as -1
