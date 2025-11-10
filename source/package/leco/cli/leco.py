@@ -9,25 +9,22 @@ import docopt
 import tomllib
 
 from ..cluster.language_classification import classify_all
-from ..cluster.per_timestep import classify_single
+from ..cluster.per_time_step import classify_single
 from ..cluster.speciation import speciate
 from ..model.simulation import simulate
 from ..plot.create import plot
 from ..version import __version__ as version
 
-from .main import main_function
 
-
-@main_function
 def run_leco(arguments: dict) -> None:
     """Run the leco model with specified configuration."""
-    configuration_path = Path(arguments["<configfile>"])
+    configuration_path = Path(arguments["<config_file>"])
     # Load the parameters in dictionary from configuration file
     configuration = load_config(configuration_path)
     # Create a directory to store the results
     directory = create_directory(arguments["<directory>"])
 
-    # Store a copy of the configuration file iin the run directory
+    # Store a copy of the configuration file in the run directory
     shutil.copy2(configuration_path, directory / "configuration.toml")
 
     # Run the leco model
@@ -42,19 +39,19 @@ def cluster_languages(arguments: dict) -> None:
 
     # Dictionary maps methods to their corresponding functions
     classification_by_method = {
-        "all": classify_all,  # 3D clustering over all timesteps
-        "single": classify_single,  # 2D clustering per timestep [Note: under development]
+        "all": classify_all,  # 3D clustering over all time_steps
+        "single": classify_single,  # 2D clustering per time_step [Note: under development]
         "speciation": speciate,  # Feed-forward speciation-based clustering [Note: under development]
     }
 
-    # Check if method is valid and call the corresponding function
+    # Call the corresponding function
     classification_by_method[method](directory, distance_threshold)
 
 
 def plot_results(arguments: dict) -> None:
     """Create plots of the leco model output."""
-    configuration = load_config(arguments["<configfile>"])
-    gpkg_file = Path(arguments["<gpkgfile>"])
+    configuration = load_config(arguments["<config_file>"])
+    gpkg_file = Path(arguments["<gpkg_file>"])
     plot(gpkg_file, configuration)
 
 
@@ -79,17 +76,17 @@ def main() -> None:
 Run leco model
 
 Usage:
-    {command} run [--debug] <configfile> <directory>
-    {command} cluster [--debug] [--method <all|speciation|single>] [--distance <distancethreshold>] <directory>
-    {command} plot [--debug] <configfile> <gpkgfile>
+    {command} run [--debug] <config_file> <directory>
+    {command} cluster [--debug] [--method <all|speciation|single>] [--distance <distance_threshold>] <directory>
+    {command} plot [--debug] <config_file> <gpkg_file>
 
 Options:
   -h --help                         Show this screen and exit
   --version                         Show version and exit
-  <configfile>                      Path to the configuration TOML file
+  <config_file>                     Path to the configuration TOML file
   --debug                           Enable debug logging
-  --distance <distthreshold>        Distance threshold to set clusters [default: 0.3]
-  <gpkgfile>                        Path to a gpkg file created during the clustering
+  --distance <distance_threshold>   Distance threshold to set clusters [default: 0.3]
+  <gpkg_file>                       Path to a gpkg file created during the clustering
   <directory>                       Directory to store/read the model output
   --method <all|speciation|single>  Clustering method to use
 
