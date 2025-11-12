@@ -39,8 +39,16 @@ def mutate_profile(
 
 def simulate(p: dict, directory: Path) -> None:
     """Run the LECo model of Linguistic Evolutionary COmputations."""
+
+    # The configuration file is a way for the user to pass on settings to the code. Inside the code you can
+    # use this information as you like. I would keep most of the code obliviant of the setup of the
+    # configuration file. For example, a subset area is a bounding box. Create this box / extent ASAP and pass on this
+    # box instead of a dict resulting form the TOML parsing.
+
     # Initialize seed
     rng = np.random.default_rng(p["initialization"]["seed"])
+
+    # Should the idea of a barrier be generalized to a continuous field of varying permeabilities?
 
     # Initialize a spatial barrier if specified
     barrier = None
@@ -65,7 +73,12 @@ def simulate(p: dict, directory: Path) -> None:
     # Write initialization dataframe to a .geoparquet file
     population.to_parquet(directory / "output000.geoparquet")
 
-    # Keep track of the maximum ID for agent births
+    # Keep track of the maximum ID for agent births. New agents get unique IDs, larger than this max_id.
+
+    # Actually, this is an implementation detail of population_dynamics that is surfacing here. This function
+    # should do its thing without this max_id being passed around. How about a dataframe for storing
+    # properties of all agents / the population as a whole? max_id can be part of that. initialize_population
+    # can return it.
     max_id = population["id"].max()
 
     for step in tqdm(range(1, p["initialization"]["steps"] + 1)):
@@ -113,6 +126,3 @@ def simulate(p: dict, directory: Path) -> None:
         population.to_parquet(
             directory / f"output{step:03d}.geoparquet",
         )
-
-
-# %%

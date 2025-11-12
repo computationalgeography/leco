@@ -69,4 +69,5 @@ def classify_all(directory: Path, dist_threshold: float) -> None:
     )
 
     # Save output to a single gpkg file
+    # Pass a CRS to get rid of the warning
     population.to_file(directory / "population.gpkg", driver="GPKG")
