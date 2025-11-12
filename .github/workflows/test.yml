@@ -44,6 +44,10 @@ jobs:
         run: |
           py_interpreter="${{ steps.py.outputs.python-path }}"
           PYTHONPATH=source/package $py_interpreter source/test/run_all_tests.py
+      - name: Check requirements
+        run: |
+          py_interpreter="${{ steps.py.outputs.python-path }}"
+          PYTHONPATH=source/package $py_interpreter source/script/leco_model.py --help
       - name: Create documentation
         run: |
           sphinx-build -M html documentation documentation_build
