@@ -48,6 +48,7 @@ def initialize_positions(
     rng: np.random.default_rng,
 ) -> tuple[np.ndarray[float], np.ndarray[float]]:
     """Initialize coordinates for the number of start agents within the specified initialization area."""
+    # Refactor: always pass in a subset area. By default(?) it is defined by the whole area (space).
     if subset_area["present"] is True:
         # If a initialization area is specified, use those coordinates as the range
         x = initialize_coordinates(subset_area["x_extent"][0], subset_area["x_extent"][1], nr_agents, rng)

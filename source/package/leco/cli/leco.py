@@ -16,6 +16,9 @@ from ..plot.create import plot
 from ..version import __version__ as version
 
 
+# Nitpicking: don't document the obvious
+
+
 def run_leco(arguments: dict) -> None:
     """Run the leco model with specified configuration."""
     configuration_path = Path(arguments["<config_file>"])
@@ -33,7 +36,9 @@ def run_leco(arguments: dict) -> None:
 
 def cluster_languages(arguments: dict) -> None:
     """Run language classification on the leco model output for a specified method."""
+    # This default can be put in the argument usage I think
     method = arguments["--method"] or "all"
+    # This default can be put in the argument usage I think
     distance_threshold = float(arguments["--distance"] or 0.3)
     directory = Path(arguments["<directory>"])
 
@@ -76,17 +81,23 @@ def main() -> None:
 Run leco model
 
 Usage:
-    {command} run [--debug] <config_file> <directory>
-    {command} cluster [--debug] [--method <all|speciation|single>] [--distance <distance_threshold>] <directory>
-    {command} plot [--debug] <config_file> <gpkg_file>
+    {command} run
+        [--debug] <config_file> <directory>
+    {command} cluster
+        [--debug] [--method <all|speciation|single>]
+        [--distance <distance_threshold>] <directory>
+    {command} plot
+        [--debug] <config_file> <gpkg_file>
 
 Options:
   -h --help                         Show this screen and exit
   --version                         Show version and exit
   <config_file>                     Path to the configuration TOML file
   --debug                           Enable debug logging
-  --distance <distance_threshold>   Distance threshold to set clusters [default: 0.3]
-  <gpkg_file>                       Path to a gpkg file created during the clustering
+  --distance <distance_threshold>   Distance threshold to set clusters
+                                    [default: 0.3]
+  <gpkg_file>                       Path to a gpkg file created during the
+                                    clustering
   <directory>                       Directory to store/read the model output
   --method <all|speciation|single>  Clustering method to use
 
@@ -95,6 +106,9 @@ Typical workflow:
     {command} cluster --method speciation --distance 0.2 results_20251023
     {command} plot configuration.toml population.gpkg
 """
+
+    # cluster needs a pathname of the gpkg to write to. I may want to cluster multiple times with different
+    # options. Also, the name is needed for plot. Better to allow the user to specify it.
 
     arguments = docopt.docopt(usage, sys.argv[1:], version=version)
 
