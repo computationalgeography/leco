@@ -10,7 +10,7 @@ import numpy as np
 
 from .animation import plot_animation
 from .interactive_3d import plot_3d_fig
-from .phylogeny_large_clustering import create_phylogeny
+from .phylogeny import create_phylogeny
 from .summary import plot_summaries
 
 

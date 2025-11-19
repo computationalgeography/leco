@@ -8,9 +8,8 @@ from pathlib import Path
 import docopt
 import tomllib
 
-from ..cluster.language_classification import classify_all
-from ..cluster.per_time_step import classify_single
-from ..cluster.diversification import diversify
+from ..cluster.all import classify_all
+from ..cluster.feed_forward import diversify
 from ..model.simulation import simulate
 from ..plot.create import plot
 from ..version import __version__ as version
@@ -19,12 +18,10 @@ from ..version import __version__ as version
 def run_leco(arguments: dict) -> None:
     """Run the leco model with specified configuration."""
     configuration_path = Path(arguments["<config_file>"])
-    # Load the parameters in dictionary from configuration file
-    configuration = load_config(configuration_path)
-    # Create a directory to store the results
+    configuration = load_configuration(configuration_path)
     directory = create_directory(arguments["<directory>"])
 
-    # Store a copy of the configuration file in the run directory
+    # Store a copy of the configuration file for documentation and reproducibility
     shutil.copy2(configuration_path, directory / "configuration.toml")
 
     # Run the leco model
@@ -33,15 +30,14 @@ def run_leco(arguments: dict) -> None:
 
 def cluster_languages(arguments: dict) -> None:
     """Run language classification on the leco model output for a specified method."""
-    method = arguments["--method"] or "all"
-    distance_threshold = float(arguments["--distance"] or 0.3)
+    method = arguments["--method"]
+    distance_threshold = float(arguments["--distance"])
     directory = Path(arguments["<directory>"])
 
     # Dictionary maps methods to their corresponding functions
     classification_by_method = {
         "all": classify_all,  # 3D clustering over all time_steps
-        "single": classify_single,  # 2D clustering per time_step [Note: under development]
-        "diversification": diversify,  # Feed-forward diversification-based clustering [Note: under development]
+        "feed_forward": diversify,  # Feed-forward diversification-based clustering
     }
 
     # Call the corresponding function
@@ -50,12 +46,12 @@ def cluster_languages(arguments: dict) -> None:
 
 def plot_results(arguments: dict) -> None:
     """Create plots of the leco model output."""
-    configuration = load_config(arguments["<config_file>"])
+    configuration = load_configuration(arguments["<config_file>"])
     gpkg_file = Path(arguments["<gpkg_file>"])
     plot(gpkg_file, configuration)
 
 
-def load_config(config_file: Path) -> dict:
+def load_configuration(config_file: Path) -> dict:
     """Load TOML config with error handling."""
     with Path.open(config_file, "rb") as f:
         return tomllib.load(f)
@@ -77,7 +73,8 @@ Run leco model
 
 Usage:
     {command} run [--debug] <config_file> <directory>
-    {command} cluster [--debug] [--method <all|diversification|single>] [--distance <distance_threshold>] <directory>
+    {command} cluster [--debug] [--method <all|feed_forward>] 
+    [--distance <distance_threshold>] <directory>
     {command} plot [--debug] <config_file> <gpkg_file>
 
 Options:
@@ -88,11 +85,11 @@ Options:
   --distance <distance_threshold>   Distance threshold to set clusters [default: 0.3]
   <gpkg_file>                       Path to a gpkg file created during the clustering
   <directory>                       Directory to store/read the model output
-  --method <all|diversification|single>  Clustering method to use
+  --method <all|feed_forward>       Clustering method to use [default: all]
 
 Typical workflow:
     {command} run configuration.toml results_20251023
-    {command} cluster --method diversification --distance 0.2 results_20251023
+    {command} cluster --method feed_forward --distance 0.2 results_20251023
     {command} plot configuration.toml population.gpkg
 """
 
@@ -107,6 +104,6 @@ Typical workflow:
         "plot": plot_results,
     }
 
-    # Check if method is valid and call the corresponding function
+    # Determine the subcommand and call the corresponding function
     active_command = next(cmd for cmd in command_to_function if arguments[cmd])
     command_to_function[active_command](arguments)
