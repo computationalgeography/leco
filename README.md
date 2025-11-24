@@ -49,13 +49,10 @@ To run the `leco` model, type this command:
 
 ```bash
 cd leco
-PYTHONPATH=source/package python source/script/leco_model.py -i path/config.toml -o outputpath
+PYTHONPATH=source/package python source/script/leco_model.py run configuration.toml directory
 ```
 
--i requires a configuration file in TOML format of which details can be found below.
--o specifies the path to where the ouput will be stored.
-
-The standard run generates .geoparquet files of the population data, including agents ids, positions and language profiles, for every timestep. In addition, a parameter.txt file is created in the same output directory containing the configuration parameters from the config.toml file.
+The run command requires a configuration file in toml format of which details can be found below. The user is also required to provide a path to a non-existing directory where the output will be stored. The standard run generates .geoparquet files of the population data, including agents ids, positions and language profiles, for every time step. A copy is created of the configuration file within the output directory.
 
 ## Configuration file
 
@@ -107,7 +104,7 @@ Different scenario's can be chosen at initialization of the model. When init_sub
 
 A spatial barrier can be specified by setting the ranges for both x and y values. The bar_impermeability parameter determines the degree of hinder as opposed by the barrier, ranging from 0 to 1 whereby a value of 0 means no hinder and a value of 1 complete blockage. The impermeability is used to proportionally decrease the probability of an agent to move and interact across the barrier. When an agent at first try is not allowed to pass the barrier, it will remain at it's previous position.
 
-Population dynamics can follow constant birth and death rates as determined in the configuration file by setting the logistic_growth boolean to false. If logistic_growth is set to true, the number of agents will increase following a logistic growth curve with a constant death rate as configured. The carrying capacity K is determined by the number of agents * the multiplier as specified in the configuration file. Furthermore, the user can specify the duration of the logistic growth from the first time step untill the end_growth_time step.
+Population dynamics can follow constant birth and death rates as determined in the configuration file by setting the logistic_growth boolean to false. If logistic_growth is set to true, the number of agents will increase following a logistic growth curve with a constant death rate as configured. The carrying capacity K is determined by the number of agents * the multiplier as specified in the configuration file. Furthermore, the user can specify the duration of the logistic growth from the first time step until the end_growth_time step.
 
 ## Post-processing options
 
@@ -115,37 +112,16 @@ The `leco` package provides several options of post-processing the data. The lan
 
 ```bash
 cd leco
-PYTHONPATH=source/package python source/script/leco_model.py --classify outputpath/resultsdir -d 0.2
+PYTHONPATH=source/package python source/script/leco_model.py cluster [--method <all|feed_forward>] [--distance <distance_threshold>] directory
 ```
 
-The -d argument can be used to specify the distance threshold used for language classification. This is optional and the default is set at a value of 0.2. The output is stored in a single .gpkg file.
+The clustering step uses the .geoparquet files from the output directory created during the run as input and creates a .gpkg file as output containing the entire agent population across all time steps. There are two clustering methods available, of which the default is set at 'all'. The 'all' clustering method takes all language profiles across all time steps and clusters these using hierarchical clustering. The 'feed_forward' method starts from the first time step and uses diversification and shift processes from a evolutionary perspective to determine clusters of languages. The latter one is therefore more theory based. The --distance argument can be used to specify the distance threshold used for language classification. This is optional and the default is set at a value of 0.3.
 
-Alternatively, classification of the language profiles can be run directly after running the `leco` model:
+Other post-processing options regard creating plots of the output data. This will generate different plots, including the number of languages over time, the number of agents per language over time, an animated plot of the agents positions over time, a 3D interactive plot and a phylogeny.
 
 ```bash
 cd leco
-PYTHONPATH=source/package python source/script/leco_model.py --classify-after -i path/config.toml -o outputpath -d 0.2
-```
-
-Other post-processing options regard creating plots of the output data. The first script creates summary plots of the output data, including the number of languages over time and the number of agents per language over time, both saved as .pdf files.
-
-```bash
-cd leco
-PYTHONPATH=source/package python source/script/leco_model.py --plot-summaries outputpath/resultsdir/population.gpkg
-```
-
-The second script creates an animated plot of the agents positions colored by language over time. The output is saved as a .gif file.
-
-```bash
-cd leco
-PYTHONPATH=source/package python source/script/leco_model.py --plot-animation outputpath/resultsdir/population.gpkg
-```
-
-To run the `leco` model, classification and both plot steps in one go:
-
-```bash
-cd leco
-PYTHONPATH=source/package python source/script/leco_model.py --all -i path/config.toml -o outputpath
+PYTHONPATH=source/package python source/script/leco_model.py plot [--debug] configuration.toml population.gpkg
 ```
 
 ## Create wheel file

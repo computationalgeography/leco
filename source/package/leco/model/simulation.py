@@ -52,7 +52,7 @@ def simulate(p: dict, directory: Path) -> None:
         )
 
     # Initialize a population of agents
-    population = initialize_population(
+    population, max_id = initialize_population(
         p["initialization"]["agents"],
         p["space"]["shape"],
         p["initialization_subset_area"],
@@ -65,12 +65,9 @@ def simulate(p: dict, directory: Path) -> None:
     # Write initialization dataframe to a .geoparquet file
     population.to_parquet(directory / "output000.geoparquet")
 
-    # Keep track of the maximum ID for agent births
-    max_id = population["id"].max()
-
     for step in tqdm(range(1, p["initialization"]["steps"] + 1)):
-        # Add the current timestep to the population dataframe
-        population["timestep"] = step
+        # Add the current time step to the population dataframe
+        population["time_step"] = step
 
         # Apply birth and death events to the population
         population, max_id = population_dynamics(
@@ -109,7 +106,7 @@ def simulate(p: dict, directory: Path) -> None:
             rng,
         )
 
-        # Save output per timestep to geoparquet file
+        # Save output per time step to geoparquet file
         population.to_parquet(
             directory / f"output{step:03d}.geoparquet",
         )

@@ -77,7 +77,7 @@ def initialize_population(
     nr_forms: int,
     nr_meanings: int,
     rng: np.random.default_rng,
-) -> gpd.GeoDataFrame:
+) -> list[gpd.GeoDataFrame, int]:
     """Return a data frame containing for each agent the following properties."""
     """
     - id
@@ -105,12 +105,19 @@ def initialize_population(
     # Assign the start profiles to the agents
     language_profile = [start_profiles[assignment].copy() for assignment in profile_assignments]
 
+    # Keep track of the maximum ID for agent births
+    max_id = max(ids)
+
     # Create a geopandas dataframe with agent id, positions and language profile
-    return gpd.GeoDataFrame(
-        {
-            "id": ids,
-            "language_profile": language_profile,
-            "parent_id": int(-1) * nr_agents,
-        },
-        geometry=gpd.points_from_xy(x, y),
+    return (
+        gpd.GeoDataFrame(
+            {
+                "id": ids,
+                "language_profile": language_profile,
+                "parent_id": int(-1) * nr_agents,
+            },
+            geometry=gpd.points_from_xy(x, y),
+            crs="+proj=cart +units=km +type=crs",
+        ),
+        max_id,
     )
