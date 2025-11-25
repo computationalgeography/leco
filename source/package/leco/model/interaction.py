@@ -80,9 +80,20 @@ def compute_interact_prob_neighbors(
     return np.where(mask, interact_attributes["partner_prob"], barrier_probability)
 
 
+def calculate_similarity_pairwise(
+    profile_a: np.ndarray[int],
+    profile_b: np.ndarray[int],
+) -> float:
+    """Calculate the similarity between two language profiles."""
+    # Count the number of meanings with the same form
+    matching_meanings = np.sum(profile_a == profile_b)
+    # Similarity is the proportion of matching meanings
+    return matching_meanings / len(profile_a)
+
+
 def interact(
     language_profiles: np.ndarray[int],
-    interact_attributes: dict[float, float, float],
+    interact_attributes: dict[float, float, float, float],
     positions: gpd.GeoDataFrame.geometry,
     barrier: Polygon | None,
     impermeability: float,
@@ -153,17 +164,29 @@ def interact(
             interaction_mask
         ]  # Only keep the probabilities for the interacting neighbors
 
-        # Determine which meanings from neighbors' language profiles will be diffused
-        # based on the diffusion rate
-        diffusion_mask = agent_diffusion_probabilities < interact_attributes["diffusion_rate"]
-
         # Select the language profiles of the interacting neighbors
         neighbor_profiles = language_profiles[interacting_neighbors]
 
         # Adopt the forms from the neighbor's language profile to the active agent's profile
         for j in range(len(interacting_neighbors)):
+            if interact_attributes["similarity_preference"] != 0.0:
+                # Calculate similarity between the agent and the neighbor
+                similarity = calculate_similarity_pairwise(
+                    language_profiles[agent_idx],
+                    neighbor_profiles[j],
+                )
+
+                similarity_factor = similarity * interact_attributes["similarity_preference"]
+                # Calculate the adjusted adoption probability with a maximum of 1.0
+                adoption_probabilities = np.minimum(1.0, agent_diffusion_probabilities[j] + similarity_factor)
+                agent_diffusion_probabilities[j] = adoption_probabilities
+
+            # Determine which meanings from neighbors' language profiles will be diffused
+            # based on the diffusion rate
+            diffusion_mask = agent_diffusion_probabilities[j] < interact_attributes["diffusion_rate"]
+
             new_profiles[agent_idx] = np.where(
-                diffusion_mask[j],
+                diffusion_mask,
                 neighbor_profiles[j],
                 new_profiles[agent_idx],
             )
