@@ -3,6 +3,7 @@
 from pathlib import Path
 from tqdm import tqdm
 
+import pandas as pd
 import numpy as np
 
 from .initialization import initialize_barrier, initialize_population
@@ -15,7 +16,7 @@ def mutate_profile(
     language_profiles: np.ndarray[int],
     profile_attributes: dict[int, int, float],
     rng: np.random.default_rng,
-) -> np.ndarray[int]:
+) -> list[np.ndarray[int], int]:
     """Mutate language profile of agents."""
     # Get the current number of agents and the number of meanings
     nr_agents, nr_meanings = language_profiles.shape
@@ -34,7 +35,10 @@ def mutate_profile(
     # Mutate the forms if mask is true
     mutated_profiles = np.where(mutation_mask, mutated_forms, language_profiles)
 
-    return list(mutated_profiles)
+    # Count the number of mutations that have occurred to track internal change
+    mutations_count = np.sum(language_profiles != mutated_profiles)
+
+    return list(mutated_profiles), mutations_count
 
 
 def simulate(p: dict, directory: Path) -> None:
@@ -60,6 +64,15 @@ def simulate(p: dict, directory: Path) -> None:
         p["language"]["forms"],
         p["language"]["meanings"],
         rng,
+    )
+
+    # Create a dataframe to store data on the origin of changes to the language profile
+    meta_data = pd.DataFrame(
+        {
+            "time_step": [0],
+            "internal_change": [0],
+            "external_change": [0],
+        }
     )
 
     # Write initialization dataframe to a .geoparquet file
@@ -90,14 +103,14 @@ def simulate(p: dict, directory: Path) -> None:
         )
 
         # Mutations of the agents' language profiles
-        population["language_profile"] = mutate_profile(
+        population["language_profile"], internal_change = mutate_profile(
             np.stack(population["language_profile"]),
             p["language"],
             rng,
         )
 
         # Interaction between nearby agents during which linguistic features can be adopted
-        population["language_profile"] = interact(
+        population["language_profile"], external_change = interact(
             np.stack(population["language_profile"]),
             p["interaction"],
             population.geometry,
@@ -106,10 +119,16 @@ def simulate(p: dict, directory: Path) -> None:
             rng,
         )
 
+        # Record meta data for this time step
+        meta_data.loc[len(meta_data)] = [step, internal_change, external_change]
+
         # Save output per time step to geoparquet file
         population.to_parquet(
             directory / f"output{step:03d}.geoparquet",
         )
+
+    # Save meta data to csv file
+    meta_data.to_csv(directory / "meta_data.csv", index=False)
 
 
 # %%

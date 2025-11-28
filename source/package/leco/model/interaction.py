@@ -98,7 +98,7 @@ def interact(
     barrier: Polygon | None,
     impermeability: float,
     rng: np.random.default_rng,
-) -> np.ndarray[int]:
+) -> list[np.ndarray[int], int]:
     """Interaction between agents whereby linguistic diffusion occurs."""
     # Get neighbors for all agents within a radius of int_radius
     neighbors_list = nearest_neighbors(positions.get_coordinates().to_numpy(), interact_attributes["radius"])
@@ -191,5 +191,8 @@ def interact(
                 new_profiles[agent_idx],
             )
 
+    # Count the number of mutations that have occurred to track internal change
+    diffusions_count = np.sum(language_profiles != new_profiles)
+
     # Return list format to add to geopandas dataframe
-    return list(new_profiles)
+    return list(new_profiles), diffusions_count
