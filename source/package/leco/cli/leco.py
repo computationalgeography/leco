@@ -17,7 +17,7 @@ from ..version import __version__ as version
 
 def run_leco(arguments: dict) -> None:
     """Run the leco model with specified configuration."""
-    configuration_path = Path(arguments["<config_file>"])
+    configuration_path = Path(arguments["<configuration_file>"])
     configuration = load_configuration(configuration_path)
     directory = create_directory(arguments["<directory>"])
 
@@ -46,14 +46,14 @@ def cluster_languages(arguments: dict) -> None:
 
 def plot_results(arguments: dict) -> None:
     """Create plots of the leco model output."""
-    configuration = load_configuration(arguments["<config_file>"])
+    configuration = load_configuration(arguments["<configuration_file>"])
     gpkg_file = Path(arguments["<gpkg_file>"])
     plot(gpkg_file, configuration)
 
 
-def load_configuration(config_file: Path) -> dict:
+def load_configuration(configuration_file: Path) -> dict:
     """Load TOML config with error handling."""
-    with Path.open(config_file, "rb") as f:
+    with Path.open(configuration_file, "rb") as f:
         return tomllib.load(f)
 
 
@@ -72,15 +72,15 @@ def main() -> None:
 Run leco model
 
 Usage:
-    {command} run [--debug] <config_file> <directory>
-    {command} cluster [--debug] [--method <all|feed_forward>] 
+    {command} run [--debug] <configuration_file> <directory>
+    {command} cluster [--debug] [--method <all|feed_forward>]
     [--distance <distance_threshold>] <directory>
-    {command} plot [--debug] <config_file> <gpkg_file>
+    {command} plot [--debug] <configuration_file> <gpkg_file>
 
 Options:
   -h --help                         Show this screen and exit
   --version                         Show version and exit
-  <config_file>                     Path to the configuration TOML file
+  <configuration_file>              Path to the configuration TOML file
   --debug                           Enable debug logging
   --distance <distance_threshold>   Distance threshold to set clusters [default: 0.3]
   <gpkg_file>                       Path to a gpkg file created during the clustering
