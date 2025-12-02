@@ -52,11 +52,16 @@ cd leco
 PYTHONPATH=source/package python source/script/leco_model.py run configuration.toml directory
 ```
 
+Configure editor to respect maximum line length (110, see .editorconfig)
+
 The run command requires a configuration file in toml format of which details can be found below. The user is also required to provide a path to a non-existing directory where the output will be stored. The standard run generates .geoparquet files of the population data, including agents ids, positions and language profiles, for every time step. A copy is created of the configuration file within the output directory.
 
 ## Configuration file
 
 The simulation requires a TOML configuration file to set up the parameters to run the `leco` model. This file should include the following parameters:
+
+I can't run the model with this configuration. I would add a test to a GH workflow that proofs that the
+example configuration file actually works. This file can be included / referred to from here.
 
 ```toml
 [initialization]

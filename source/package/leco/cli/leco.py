@@ -53,6 +53,17 @@ def plot_results(arguments: dict) -> None:
 
 def load_configuration(configuration_file: Path) -> dict:
     """Load TOML config with error handling."""
+    # Here you "convert" a path to a file: configuration_path -> configuration_file,
+    # but the naming suggests a conversion between file and file: configuration_file -> f
+    #
+    # What I do:
+    # - Variables that contain a name of a file (or directory) end with _name: configuration_file_name
+    # - Variables that contain a path to a file (or directory) end with _path: configuration_file_path
+    # - Variables that contain a file (or directory) end with _file (or _directory): configuration_file
+    #
+    # Don't extrapolate this approach to naming things. Most variable names don't need a postfix containing
+    # information about the underlying type: the name agents is better than agents_list. In the case of
+    # files there are always three types involved: string, path, file
     with Path.open(configuration_file, "rb") as f:
         return tomllib.load(f)
 
@@ -74,7 +85,7 @@ Run leco model
 Usage:
     {command} run [--debug] <configuration_file> <directory>
     {command} cluster [--debug] [--method <all|feed_forward>]
-    [--distance <distance_threshold>] <directory>
+        [--distance <distance_threshold>] <directory>
     {command} plot [--debug] <configuration_file> <gpkg_file>
 
 Options:
