@@ -45,10 +45,11 @@ def compute_interact_prob_neighbors(
     impeded_area = interaction_circle.intersection(barrier)
 
     if impeded_area == 0:
-        # No intersection between barrier and radius, all neighbors have equal probability of partner_probability
+        # No intersection of barrier and radius, all neighbors have equal probability of partner_probability
         return np.repeat(interact_attributes["partner_probability"], len(neighbors))
 
-    # The neighbors on/behind the barrier have a lower probability to interact, proportional to the impermeability
+    # The neighbors on/behind the barrier have a lower probability to interact,
+    # proportional to the impermeability
     barrier_probability = interact_attributes["partner_probability"] * (1.0 - impermeability)
 
     if impeded_area.contains(agent_pos):
@@ -112,7 +113,8 @@ def interact(
     # Calculate the maximum number of neighbors an agent has
     max_neighbors = max(len(nbs) for nbs in neighbors_list) if neighbors_list else 0
     if max_neighbors == 0:
-        return list(new_profiles)
+        # No neighbors anywhere, hence no diffusion occurred
+        return list(new_profiles), 0
 
     # Generate interaction probabilities for all agents at once
     interaction_probabilities = rng.random(
@@ -178,7 +180,10 @@ def interact(
 
                 similarity_factor = similarity * interact_attributes["similarity_preference"]
                 # Calculate the adjusted adoption probability with a maximum of 1.0
-                adoption_probabilities = np.minimum(1.0, agent_diffusion_probabilities[j] + similarity_factor)
+                adoption_probabilities = (
+                    agent_diffusion_probabilities[j] * (1 - interact_attributes["similarity_preference"])
+                    + similarity_factor
+                )
                 agent_diffusion_probabilities[j] = adoption_probabilities
 
             # Determine which meanings from neighbors' language profiles will be diffused

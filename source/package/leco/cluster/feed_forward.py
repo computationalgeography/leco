@@ -127,7 +127,8 @@ def diversify(
     similar: bool = True,
     merge: bool = False,
 ) -> None:
-    """Feed-forward clustering of the language profiles into languages following evolutionary diversification processes."""
+    """Feed-forward clustering of the language profiles into languages
+    following evolutionary diversification processes."""
     # Read the population data across all time_steps
     population = read_geoparquet(directory)
     # Initialize language column as -1
@@ -196,7 +197,7 @@ def diversify(
                 unique_labels, counts = np.unique(clusters, return_counts=True)
 
                 if similar is True:
-                    # Find the cluster that is most similar to the original language to retain original language ID
+                    # Find the cluster that is most similar to the original language to retain original ID
                     # Calculate the modal profile from the speakers of the original language
                     old_profiles = np.stack(
                         old_step[old_step["id"].isin(lang_old_agent_ids)]["language_profile"]
@@ -220,17 +221,17 @@ def diversify(
                 for i, label in enumerate(unique_labels):
                     selected_idx = agent_indices[clusters == label]
                     if label == favorable_cluster:
-                        # Favorable cluster, either based on size or similarity, get the original language assigned
+                        # Favorable cluster, either based on size or similarity, get the original ID assigned
                         new_step.loc[selected_idx, "language"] = int(language)
                     else:
                         # Other clusters get temporary language IDs
                         max_language_id += 1
                         new_clusters.append([selected_idx.tolist(), int(max_language_id)])
 
-        # Once all previous languages have been processed, check if new clusters overlap in similarity with existing languages
+        # Check if new clusters overlap in similarity with existing languages
         if merge is False:
-            # Merge defines whether creole languages can arise: a new language is formed by combining existing languages
-            # if merge is set to false, only language shifts can take place: agents shifting to already existing languages
+            # Merge defines whether mixed languages can arise: a new language is formed out of two languages
+            # if merge is set to false, only language shifts can take place
             assigned_langs = find_assigned_languages(new_step)
 
         for agent_idx_list, label in new_clusters:
@@ -266,7 +267,7 @@ def diversify(
                     # Merge clusters by assigning the other language label
                     new_step.loc[agent_idx_list, "language"] = neighbor_language
                     logging.debug(
-                        f"Merging cluster {label} into existing language {neighbor_language} at time_step {time_step}"
+                        f"Merge cluster {label} to existing language {neighbor_language} at step {time_step}"
                     )
                     break  # Exit after merging to avoid multiple merges
 
