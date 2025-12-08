@@ -28,6 +28,7 @@ packages = ["source/package/leco"]
 
 [tool.ruff]
 line-length = 110
+select = ["E", "F"]
 fix = true
 
 [tool.lint]
