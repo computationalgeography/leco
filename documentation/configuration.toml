@@ -1,6 +1,6 @@
 [initialization]
 agents = 5
-steps = 200
+steps = 20
 seed = 51
 nr_start_languages = 5
 
