@@ -17,14 +17,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python_version: ["3.12"]
+        python_version: ["3.14"]
         platform:
           - { os: "ubuntu-24.04", arch: x64 }
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python_version }}
           cache: "pip"
