@@ -2,11 +2,10 @@ name: Analyse
 
 on:
   pull_request:
-    paths:
-      - "**"
   push:
     branches:
       - "main"
+  workflow_dispatch:
 
 jobs:
   build:
