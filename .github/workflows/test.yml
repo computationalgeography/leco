@@ -27,7 +27,7 @@ jobs:
           - { os: "windows-2025", arch: x64 }
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
       - name: Setup Python
         uses: actions/setup-python@v6
         id: py
