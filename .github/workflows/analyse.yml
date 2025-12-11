@@ -11,7 +11,7 @@ jobs:
   build:
     name: ${{ matrix.platform.os }} / ${{ matrix.platform.arch }} / python-${{ matrix.python_version }}
     runs-on: ${{ matrix.platform.os }}
-    timeout-minutes: 30
+    timeout-minutes: 5
     defaults:
       run:
         shell: bash -l {0}
@@ -23,9 +23,9 @@ jobs:
           - { os: "ubuntu-24.04", arch: x64 }
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python_version }}
           cache: "pip"
