@@ -73,7 +73,7 @@ def create_scatter_frame(
 
 def create_animation(
     animation_data: list[dict],
-    output_path: str,
+    output_path: Path,
     cmap: mpl.colors.ListedColormap,
     space: list[float, float],
     barrier: Polygon | None,
@@ -108,14 +108,14 @@ def create_animation(
     )
 
     # Save the animation as a GIF file
-    gif_path = Path(output_path) / filename
+    gif_path = output_path / filename
     logging.debug(gif_path)
     anim.save(gif_path, writer="pillow", fps=4)  # fps is frames per second
     plt.close(fig)
     logging.debug(f"Animation saved: {gif_path}")
 
 
-def string_to_floatlist(string: str) -> list[float]:
+def string_to_float_list(string: str) -> list[float]:
     """Change string to a list of float values."""
     values = ast.literal_eval(string)
     a, b = float(values[0]), float(values[1])
@@ -124,7 +124,7 @@ def string_to_floatlist(string: str) -> list[float]:
 
 
 def plot_animation(
-    input_file: str,
+    input_file: Path,
     parameters: dict,
     cmap: mpl.colors.ListedColormap,
 ) -> None:
@@ -133,15 +133,15 @@ def plot_animation(
     population = gpd.read_file(input_file)
 
     # Access parameters from the output directory
-    output_path = Path(input_file).parent
+    output_path = input_file.parent
 
     # Initialize a spatial barrier if specified
     barrier = None
     if parameters["barrier"]["present"] == "True":
         barrier = initialize_barrier(
             parameters["space"]["shape"],
-            string_to_floatlist(parameters["barrier"]["x_extend"]),
-            string_to_floatlist(parameters["barrier"]["y_extend"]),
+            string_to_float_list(parameters["barrier"]["x_extend"]),
+            string_to_float_list(parameters["barrier"]["y_extend"]),
         )
 
     animation_data = prepare_animation_data(population)

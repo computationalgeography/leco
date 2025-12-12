@@ -1,12 +1,13 @@
 """Create a 3D interactive plot of the leco model output."""
 
+from pathlib import Path
 import geopandas as gpd
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
 
 def plot_3d_fig(
-    input_file: str,
+    input_file: Path,
     cmap: mpl.colors.ListedColormap,
 ) -> None:
     """Create a 3D interactive plot of the leco model output."""

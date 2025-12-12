@@ -1,12 +1,16 @@
-import os
-from pathlib import Path
-import geopandas as gpd
-import pandas as pd
-import networkx as nx
-import matplotlib.pyplot as plt
-import numpy as np
+"""Create phylogenetic visualizations of language evolution over time."""
 
-## UNDER DEVELOPMENT
+import logging
+from pathlib import Path
+
+import geopandas as gpd
+from matplotlib.image import imread
+import matplotlib.pyplot as plt
+import pandas as pd
+
+import ete3
+from ete3 import Tree, TreeStyle, NodeStyle
+import networkx as nx
 
 
 def postprocess_phylogeny(population: gpd) -> pd.DataFrame:
@@ -15,344 +19,149 @@ def postprocess_phylogeny(population: gpd) -> pd.DataFrame:
         t_birth = group["time_step"].min()
         t_extinct = group["time_step"].max()
         if t_birth == 0:
-            parents = "init"
-            roots = lang  # The language itself is the root if it starts at time_step 0
+            parent_languages = ""
+            # This should be the -1 parent_id
         else:
-            agent_ids_t_birth = group.loc[group["time_step"] == t_birth, "id"].tolist()
-            parents = population.loc[
-                (population["time_step"] == t_birth - 1) & (population["id"].isin(agent_ids_t_birth)),
-                "language",
-            ].tolist()
-            roots = None  # We'll fill this in later
+            # Get the parent ids of agents speaking this language at t_birth
+            parent_ids = group[group["time_step"] == t_birth]["id"].dropna().unique().tolist()
+            # Find what languages those parents spoke at t_birth - 1
+            parent_languages = (
+                population[(population["time_step"] == t_birth - 1) & (population["id"].isin(parent_ids))][
+                    "language"
+                ]
+                .unique()
+                .tolist()
+            )
 
         records.append(
             {
                 "language": lang,
                 "t_birth": t_birth,
                 "t_extinct": t_extinct,
-                "parents": parents,
-                "roots": roots,
+                "parents": parent_languages,
             }
         )
 
-    languages = pd.DataFrame(records)
-
-    # Fill in the roots for non-init languages by tracing back to origins
-    def find_root(lang_name, languages_df):
-        """Recursively find the root ancestor of a language"""
-        lang_data = languages_df[languages_df["language"] == lang_name]
-        if lang_data.empty:
-            return None
-
-        parents = lang_data.iloc[0]["parents"]
-        if parents == "init":
-            return lang_name  # This language is itself a root
-        elif isinstance(parents, list) and len(parents) > 0:
-            # For languages with multiple parents, we'll use the first parent's root
-            # You might want to modify this logic based on your specific needs
-            return find_root(parents[0], languages_df)
-        else:
-            return None
-
-    # Update roots for all non-init languages
-    for idx, row in languages.iterrows():
-        if row["roots"] is None:
-            languages.at[idx, "roots"] = find_root(row["language"], languages)
-
-    return languages
+    return pd.DataFrame(records)
 
 
-def visualize_phylogeny(languages: pd.DataFrame):
+def test_ete3(df, OutputPath: Path):
+    # Build graph first
     G = nx.DiGraph()
+    for row in df.itertuples(index=False):
+        G.add_node(row.language, t_birth=row.t_birth, t_extinct=row.t_extinct)
+    for row in df.itertuples(index=False):
+        for p in row.parents:
+            G.add_edge(p, row.language)
 
-    for _, row in languages.iterrows():
-        lang = row["language"]
-        t_birth = row["t_birth"]
-        t_extinct = row["t_extinct"]
-        parents = row["parents"]
+    # Find roots and their subgraphs
+    roots = [n for n in G.nodes if G.in_degree(n) == 0]
 
-        G.add_node(lang, birth=t_birth, death=t_extinct)
-
-        if parents != "init":
-            for p in parents:
-                G.add_edge(p, lang)
-
-    """ # Draw the graph
-    pos = nx.spring_layout(G)  # or use a tree layout
-    nx.draw(G, pos, with_labels=True, node_size=800, node_color="skyblue", arrows=True)
-    plt.title("Language Phylogeny")
-    plt.show() """
-
-    # --- Manual layout: y = t_birth, x = index or hash for spacing --- IS NOT WORKING UGHH
-    pos = {}
-    used_x = {}
-    for i, node in enumerate(G.nodes):
-        birth = G.nodes[node].get("t_birth", 0)
-
-        # Assign x position based on number of existing nodes with the same birth time
-        if birth not in used_x:
-            used_x[birth] = 0
-        x = used_x[birth]
-        used_x[birth] += 1
-
-        pos[node] = (x, -birth)  # negative birth time → top = older
-
-    # --- Draw the graph ---
-    plt.figure(figsize=(12, 8))
-
-    # Draw edges and nodes
-    nx.draw(
-        G,
-        pos,
-        with_labels=True,
-        arrows=True,
-        node_color="skyblue",
-        node_size=800,
-        font_size=10,
-    )
-
-    # Add a time axis
-    y_ticks = sorted(set(-G.nodes[n]["t_birth"] for n in G.nodes if G.nodes[n]["t_birth"] is not None))
-    plt.yticks(y_ticks, labels=[-y for y in y_ticks])
-    plt.xlabel("Lineage")
-    plt.ylabel("Time (time step)")
-    plt.title("Language Phylogeny with Time Axis")
-    plt.grid(True, linestyle="--", alpha=0.3)
-
-    plt.tight_layout()
-    plt.show()
-
-
-def plot_language_phylogeny(languages):
-    """
-    Create a phylogenetic visualization with temporal evolution and tree-like branching
-    """
-    fig, ax = plt.subplots(figsize=(14, 10))
-
-    # Create hierarchical positioning based on parent-child relationships
-    y_positions = {}
-
-    def assign_position_hierarchically(lang_data, languages_df):
-        """Recursively assign positions keeping families together"""
-        # Start with root languages (those with "init" parents)
-        roots = languages_df[languages_df["parents"] == "init"].copy()
-        current_y = 0
-
-        # Process each root and its descendants
-        for _, root in roots.iterrows():
-            current_y = assign_subtree_positions(root["language"], languages_df, current_y)
-
-        return current_y
-
-    def assign_subtree_positions(lang, languages_df, start_y):
-        """Assign positions for a language and all its descendants"""
-        if lang in y_positions:
-            return start_y
-
-        # Assign position to current language
-        y_positions[lang] = start_y
-        current_y = start_y + 1
-
-        # Find all children of this language
-        children = []
-        for _, row in languages_df.iterrows():
-            if row["parents"] != "init" and isinstance(row["parents"], list):
-                if lang in row["parents"]:
-                    children.append(row["language"])
-
+    def build_newick_subtree(node, graph, internal_node_id=[1000]):
+        children = list(graph.successors(node))
         if not children:
-            return current_y
+            return str(node)
+        else:
+            subtrees = [build_newick_subtree(c, graph, internal_node_id) for c in children]
+            # Create an internal node label for this node to keep track
+            internal_label = f"InternalNode{internal_node_id[0]}"
+            internal_node_id[0] += 1
+            # Return Newick string with internal node label
+            return "(" + ",".join(subtrees) + ")" + internal_label
 
-        # Sort children by birth time - LATEST births get placed farthest from parent
-        children_data = languages_df[languages_df["language"].isin(children)].sort_values(
-            "t_birth", ascending=False
-        )  # Reverse order
+    # Ensure output directory exists
+    OutputPath.mkdir(parents=True, exist_ok=True)
 
-        # Get current language data for comparison
-        current_lang_data = languages_df[languages_df["language"] == lang].iloc[0]
+    for root in roots:
+        newick = build_newick_subtree(root, G) + ";"
+        print(f"Rendering root {root} with newick:\n{newick}\n")
 
-        # Assign positions sequentially to avoid overlaps, maintaining birth order
-        child_positions = []
-        for i, (_, child_row) in enumerate(children_data.iterrows()):
-            if child_row["language"] not in y_positions:
-                # Check if child birth matches parent extinction
-                if child_row["t_birth"] == current_lang_data["t_extinct"] + 1:
-                    # Place child at same y position as parent
-                    child_positions.append((child_row["language"], y_positions[lang]))
-                    y_positions[child_row["language"]] = y_positions[lang]
-                else:
-                    # Assign sequential positions starting from current_y
-                    child_positions.append((child_row["language"], current_y))
-                    y_positions[child_row["language"]] = current_y
-                    current_y += 1
+        tree = Tree(newick, format=1)
 
-        # Now process descendants for each child in the order they were positioned
-        for child_lang, child_y in child_positions:
-            current_y = assign_subtree_positions(child_lang, languages_df, current_y)
-
-        return current_y
-
-    # Assign positions hierarchically
-    assign_position_hierarchically(languages, languages)
-
-    # Handle any unassigned languages (shouldn't happen with proper data)
-    current_max = max(y_positions.values()) + 1 if y_positions else 0
-    for _, row in languages.iterrows():
-        if row["language"] not in y_positions:
-            y_positions[row["language"]] = current_max
-            current_max += 1
-
-    n_languages = len(y_positions)
-
-    # Color assignment: each root language gets its own color family
-    root_languages = languages[languages["parents"] == "init"]["language"].tolist()
-    root_colors = plt.cm.Set1(np.linspace(0, 1, len(root_languages)))
-
-    # Create color mapping for all languages based on their root ancestor
-    def get_root_ancestor(lang, languages_df):
-        """Find the root ancestor of a language"""
-        current_lang = lang
-        visited = set()
-
-        while current_lang not in visited:
-            visited.add(current_lang)
-            lang_data = languages_df[languages_df["language"] == current_lang]
-            if lang_data.empty:
-                break
-            parents = lang_data.iloc[0]["parents"]
-            if parents == "init":
-                return current_lang
-            elif isinstance(parents, list) and len(parents) > 0:
-                current_lang = parents[0]  # Follow first parent
+        # Add node styles and features if needed
+        for node in tree.traverse():
+            if node.is_leaf():
+                # Only leaf nodes have language IDs
+                lang_id = int(node.name)
+                if lang_id in G.nodes:
+                    node.add_feature("t_birth", G.nodes[lang_id]["t_birth"])
+                    node.add_feature("t_extinct", G.nodes[lang_id]["t_extinct"])
             else:
-                break
-        return current_lang
+                node.add_feature("t_birth", 0)
+                node.add_feature("t_extinct", 100)
 
-    color_map = {}
-    for i, root in enumerate(root_languages):
-        root_color = root_colors[i]
-        color_map[root] = root_color
+            node_style = NodeStyle()
+            if node.is_leaf():
+                node_style["fgcolor"] = "darkgreen"
+                node_style["shape"] = "sphere"
+                node_style["size"] = 8
+            else:
+                node_style["fgcolor"] = "darkblue"
+                node_style["shape"] = "circle"
+                node_style["size"] = 10
+            node.set_style(node_style)
 
-        # Assign same color to all descendants
-        for _, row in languages.iterrows():
-            lang = row["language"]
-            if get_root_ancestor(lang, languages) == root:
-                color_map[lang] = root_color
+        ts = TreeStyle()
+        ts.show_leaf_name = True
+        ts.show_branch_length = False
+        ts.scale = 300  # Control scale of tree (adjust as needed)
+        ts.title.add_face(ete3.TextFace(f"Phylogeny from root {root}", fsize=14), column=0)
+        ts.show_scale = True
 
-    # First, draw all the branching connections
-    for idx, row in languages.iterrows():
-        lang = row["language"]
-        y = y_positions[lang]
-        birth = row["t_birth"]
-        extinct = row["t_extinct"]
+    # Create figure with subplots (one per root)
+    fig, axes = plt.subplots(1, len(roots), figsize=(5 * len(roots), 8))
+    if len(roots) == 1:
+        axes = [axes]
 
-        # Draw parent connections as tree branches
-        if row["parents"] != "init" and isinstance(row["parents"], list):
-            for parent in row["parents"]:
-                if parent in y_positions:
-                    parent_y = y_positions[parent]
+    for i, root in enumerate(sorted(roots)):
+        ax = axes[i]
 
-                    # Find parent's data
-                    parent_info = languages[languages["language"] == parent]
-                    if not parent_info.empty:
-                        parent_extinct = parent_info.iloc[0]["t_extinct"]
+        # Build Newick for this root's subgraph only
+        newick = build_newick_subtree(root, G) + ";"
+        tree = Tree(newick, format=1)
 
-                        # Branch point is at the child's birth time or slightly before
-                        branch_x = birth
+        # Safe node processing (only leaves get lang_id lookup)
+        for node in tree.traverse():
+            if node.is_leaf():
+                try:
+                    lang_id = int(node.name)
+                    if lang_id in G.nodes:
+                        node.add_feature("t_birth", G.nodes[lang_id]["t_birth"])
+                        node.add_feature("t_extinct", G.nodes[lang_id]["t_extinct"])
+                except Exception as e:
+                    logging.error(f"! Error adding features to node {node.name}: {e}")
+            else:
+                node.add_feature("t_birth", 0)
+                node.add_feature("t_extinct", 100)
 
-                        # Get color for this lineage
-                        branch_color = color_map.get(lang, "black")
+            # Style nodes
+            node_style = NodeStyle()
+            if node.is_leaf():
+                node_style["fgcolor"] = "darkgreen"
+                node_style["size"] = 8
+            else:
+                node_style["fgcolor"] = "darkblue"
+                node_style["size"] = 6
+            node.set_style(node_style)
 
-                        # Draw the branching connection
-                        # Horizontal line from parent timeline to branch point
-                        ax.plot(
-                            [parent_extinct, branch_x],
-                            [parent_y, parent_y],
-                            color=branch_color,
-                            linewidth=2,
-                            alpha=0.8,
-                        )
+        # ETE3 TreeStyle
+        ts = TreeStyle()
+        ts.show_leaf_name = True
+        ts.scale = 400
+        ts.show_branch_length = False
 
-                        # Vertical line from parent level to child level
-                        ax.plot(
-                            [branch_x, branch_x],
-                            [parent_y, y],
-                            color=branch_color,
-                            linewidth=2,
-                            alpha=0.8,
-                        )
+        # Render THIS tree to THIS subplot axis
+        out_file = OutputPath / f"temp_root_{root}.png"
+        tree.render(str(out_file), tree_style=ts, w=500, h=600)
 
-                        # Optional: Add a small circle at branch points
-                        ax.plot(
-                            branch_x,
-                            parent_y,
-                            "o",
-                            color=branch_color,
-                            markersize=4,
-                            alpha=0.8,
-                        )
+        img = imread(str(out_file))
+        ax.imshow(img, aspect="auto")
+        ax.set_title(f"Root {root}", fontsize=14, fontweight="bold")
+        ax.axis("off")  # Hide axes
 
-    # Then, plot language lifespans as horizontal lines
-    for idx, row in languages.iterrows():
-        lang = row["language"]
-        y = y_positions[lang]
-        birth = row["t_birth"]
-        extinct = row["t_extinct"]
-
-        # Get color for this language based on root ancestor
-        color = color_map.get(lang, "blue")
-
-        # Draw lifespan as a thick horizontal line
-        ax.plot(
-            [birth, extinct],
-            [y, y],
-            color=color,
-            linewidth=4,
-            alpha=0.8,
-            solid_capstyle="round",
-        )
-
-        # Add language label next to the line
-        label_x = extinct + 0.2
-        ax.text(
-            label_x,
-            y,
-            lang,
-            ha="left",
-            va="center",
-            fontsize=10,
-            fontweight="bold",
-            bbox=dict(boxstyle="round,pad=0.2", facecolor="white", alpha=0.8),
-        )
-
-    # Customize the plot
-    ax.set_xlabel("Time Step", fontsize=14)
-    ax.set_ylabel("Languages", fontsize=14)
-    ax.set_title("Language Phylogeny with Tree-like Branching", fontsize=16, fontweight="bold")
-
-    # Set y-axis to show language names in hierarchical order
-    y_labels = [""] * n_languages
-    for lang, pos in y_positions.items():
-        if pos < len(y_labels):
-            y_labels[pos] = lang
-
-    # Hide y-axis
-    ax.set_yticks([])
-    ax.set_yticklabels([])
-
-    # Set reasonable x-axis limits
-    if not languages.empty:
-        x_min = languages["t_birth"].min() - 1
-        x_max = languages["t_extinct"].max() + 2
-        ax.set_xlim(x_min, x_max)
-
-    ax.set_ylim(-0.5, n_languages - 0.5)
-
-    # Add grid for better readability
-    ax.grid(True, axis="x", alpha=0.3, linestyle="--")
-
+    plt.suptitle("Language Phylogenies by Root (ETE3)", fontsize=16)
     plt.tight_layout()
-    return fig, ax
+    plt.savefig(OutputPath / "combined_ete3_phylogenies.png", dpi=300, bbox_inches="tight")
 
 
 def create_phylogeny(input_file: Path):
@@ -360,10 +169,7 @@ def create_phylogeny(input_file: Path):
     population = gpd.read_file(input_file)
     output_path = input_file.parent
 
-    languages = postprocess_phylogeny(population)
-    # visualize_phylogeny(languages)
-    print(languages)
+    evolution = postprocess_phylogeny(population)
+    logging.debug(print(evolution))
 
-    # Usage
-    fig, ax = plot_language_phylogeny(languages)
-    plt.savefig(os.path.join(output_path, "Phylogeny.jpeg"))
+    test_ete3(evolution, output_path)
