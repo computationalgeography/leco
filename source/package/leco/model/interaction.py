@@ -95,6 +95,7 @@ def calculate_similarity_pairwise(
 def interact(
     language_profiles: np.ndarray[int],
     interact_attributes: dict[float, float, float, float],
+    profile_length: int,
     positions: gpd.GeoDataFrame.geometry,
     barrier: Polygon | None,
     impermeability: float,
@@ -177,9 +178,10 @@ def interact(
                     language_profiles[agent_idx],
                     neighbor_profiles[j],
                 )
-
-                similarity_factor = similarity * interact_attributes["similarity_preference"]
-                # Calculate the adjusted adoption probability with a maximum of 1.0
+                # Scale the similarity with the length of the language profile to level with diffusion rate
+                similarity_scaled = similarity / profile_length
+                similarity_factor = similarity_scaled * interact_attributes["similarity_preference"]
+                # adoption_prob = diffusion_prob * (1 - sim_pref) + (similarity * sim_pref)
                 adoption_probabilities = (
                     agent_diffusion_probabilities[j] * (1 - interact_attributes["similarity_preference"])
                     + similarity_factor
