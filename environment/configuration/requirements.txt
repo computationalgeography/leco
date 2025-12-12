@@ -8,6 +8,7 @@ numpy
 pandas
 pre-commit
 pyarrow
+SaLib
 scikit-learn
 shapely
 sphinx

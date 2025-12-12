@@ -1,6 +1,7 @@
 """Cluster language profiles into languages in 3d across time."""
 
 from pathlib import Path
+import logging
 
 import geopandas as gpd
 import numpy as np
@@ -57,7 +58,7 @@ def dynamic_clustering(population: gpd.GeoDataFrame, dist_threshold: float) -> g
     return pd.concat(clustered_dfs, ignore_index=True)
 
 
-def classify_all(directory: Path, dist_threshold: float) -> None:
+def classify_all(directory: Path, dist_threshold: float, sensitivity: bool = False) -> None | float:
     """Run the LECo model of language evolution."""
     # Read in the population data across all time steps
     population = read_geoparquet(directory)
@@ -69,4 +70,11 @@ def classify_all(directory: Path, dist_threshold: float) -> None:
     )
 
     # Save output to a single gpkg file
-    population.to_file(directory / "population.gpkg", driver="GPKG")
+    population.to_file(directory / "population_all.gpkg", driver="GPKG")
+
+    if sensitivity:
+        # Compute number of unique languages at the last time step
+        last_step = int(population["time_step"].max())
+        languages_last = population.loc[population["time_step"] == last_step, "language"].unique()
+        logging.info(f"Last time step: {last_step}; number of languages: {len(languages_last)}")
+        return len(languages_last)

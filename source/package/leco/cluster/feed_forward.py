@@ -1,6 +1,7 @@
 """Cluster language profiles into languages per time_step."""
 
 from pathlib import Path
+from tqdm import tqdm
 
 import geopandas as gpd
 import logging
@@ -42,7 +43,7 @@ def language_classification(
         n_clusters=None,
         distance_threshold=dist_threshold,  # Threshold for clustering
         metric="hamming",
-        linkage="average",
+        linkage="complete",
     )  # Average linkage calculates over the mean of the distances between all points in the clusters
 
     return clustering.fit_predict(language_profiles)
@@ -57,6 +58,8 @@ def check_cluster_coherence(language_profiles: np.ndarray[int], dist_threshold) 
 def initialize_languages(start_population: gpd.GeoDataFrame, dist_threshold: float) -> np.ndarray[int]:
     """Initialize languages for the first time_step based on coherence."""
     language_profiles = np.stack(start_population["language_profile"])
+    if len(start_population) == 1:
+        return np.array([0])
     clusters = language_classification(language_profiles, dist_threshold)
 
     return clusters
@@ -122,11 +125,12 @@ def get_neighboring_languages(
 def diversify(
     directory: Path,
     dist_threshold: float,
-    radius: float = 20.0,
+    sensitivity: bool = False,
+    radius: float = 250.0,
     kmeans: bool = False,
     similar: bool = True,
-    merge: bool = False,
-) -> None:
+    merge: bool = True,
+) -> int:
     """Feed-forward clustering of the language profiles into languages
     following evolutionary diversification processes."""
     # Read the population data across all time_steps
@@ -136,8 +140,10 @@ def diversify(
     # Keep track of the maximum language ID assigned
     max_language_id = 0
 
+    shift_counter = 0
+
     # Iterate over each time_step and cluster language profiles
-    for time_step in population["time_step"].unique():
+    for time_step in tqdm(population["time_step"].unique()):
         if time_step == 0:
             # First time_step: initialize the start languages
             clusters = initialize_languages(population[population["time_step"] == 0], dist_threshold)
@@ -269,6 +275,7 @@ def diversify(
                     logging.debug(
                         f"Merge cluster {label} to existing language {neighbor_language} at step {time_step}"
                     )
+                    shift_counter += 1
                     break  # Exit after merging to avoid multiple merges
 
             # If agents in the new cluster have not been assigned a language yet, assign a new language ID
@@ -280,5 +287,13 @@ def diversify(
         # Update population with new language assignments
         population.loc[population["time_step"] == time_step, "language"] = new_step["language"].astype(int)
 
+    logging.info(f"Total language shifts due to merging: {shift_counter}")
     # Save output to a single gpkg file
     population.to_file(directory / "population.gpkg", driver="GPKG")
+
+    if sensitivity:
+        # Compute number of unique languages at the last time step
+        last_step = int(population["time_step"].max())
+        languages_last = population.loc[population["time_step"] == last_step, "language"].unique()
+        logging.info(f"Last time step: {last_step}; number of languages: {len(languages_last)}")
+        return len(languages_last)

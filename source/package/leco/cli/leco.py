@@ -12,17 +12,18 @@ from ..cluster.all import classify_all
 from ..cluster.feed_forward import diversify
 from ..model.simulation import simulate
 from ..plot.create import plot
+from ..sensitivity_analysis.morris import analyze
 from ..version import __version__ as version
 
 
 def run_leco(arguments: dict) -> None:
     """Run the leco model with specified configuration."""
-    configuration_path = Path(arguments["<configuration_file>"])
-    configuration = load_configuration(configuration_path)
+    configuration_file_path = Path(arguments["<configuration_file>"])
+    configuration = load_configuration(configuration_file_path)
     directory = create_directory(arguments["<directory>"])
 
     # Store a copy of the configuration file for documentation and reproducibility
-    shutil.copy2(configuration_path, directory / "configuration.toml")
+    shutil.copy2(configuration_file_path, directory / "configuration.toml")
 
     # Run the leco model
     simulate(configuration, directory)
@@ -46,23 +47,35 @@ def cluster_languages(arguments: dict) -> None:
 
 def plot_results(arguments: dict) -> None:
     """Create plots of the leco model output."""
-    configuration = load_configuration(arguments["<configuration_file>"])
-    gpkg_file = Path(arguments["<gpkg_file>"])
-    plot(gpkg_file, configuration)
+    configuration_file_path = Path(arguments["<configuration_file>"])
+    configuration = load_configuration(configuration_file_path)
+    gpkg_file_path = Path(arguments["<gpkg_file>"])
+    plot(gpkg_file_path, configuration)
 
 
-def load_configuration(configuration_file: Path) -> dict:
-    """Load TOML config with error handling."""
-    with Path.open(configuration_file, "rb") as f:
-        return tomllib.load(f)
+def sensitivity_analysis(arguments: dict) -> None:
+    """Run sensitivity analysis on the leco model."""
+    method = arguments["--method"]
+    distance_threshold = float(arguments["--distance"])
+    configuration_file_path = Path(arguments["<configuration_file>"])
+    configuration = load_configuration(configuration_file_path)
+    directory = create_directory(arguments["<directory>"])
+
+    analyze(method, distance_threshold, configuration, directory)
+
+
+def load_configuration(configuration_file_path: Path) -> dict:
+    """Load TOML configuration file with error handling."""
+    with Path.open(configuration_file_path, "rb") as configuration_file:
+        return tomllib.load(configuration_file)
 
 
 def create_directory(directory_path: str) -> Path:
     """Create directory with name provided by user input."""
-    directory = Path(directory_path)
-    directory.mkdir(parents=True, exist_ok=False)
+    directory_path = Path(directory_path)
+    directory_path.mkdir(parents=True, exist_ok=False)
 
-    return directory
+    return directory_path
 
 
 def main() -> None:
@@ -74,13 +87,15 @@ Run leco model
 Usage:
     {command} run [--debug] <configuration_file> <directory>
     {command} cluster [--debug] [--method <all|feed_forward>]
-    [--distance <distance_threshold>] <directory>
+        [--distance <distance_threshold>] <directory>
     {command} plot [--debug] <configuration_file> <gpkg_file>
+    {command} sensitivity [--debug] [--method <all|feed_forward>]
+        [--distance <distance_threshold>] <configuration_file> <directory>
 
 Options:
   -h --help                         Show this screen and exit
   --version                         Show version and exit
-  <configuration_file>              Path to the configuration TOML file
+  <configuration_file>              Path to a TOML configuration file
   --debug                           Enable debug logging
   --distance <distance_threshold>   Distance threshold to set clusters [default: 0.3]
   <gpkg_file>                       Path to a gpkg file created during the clustering
@@ -91,6 +106,7 @@ Typical workflow:
     {command} run configuration.toml results_20251023
     {command} cluster --method feed_forward --distance 0.2 results_20251023
     {command} plot configuration.toml population.gpkg
+    {command} sensitivity --method feed_forward --distance 0.2 configuration.toml sensitivity_results
 """
 
     arguments = docopt.docopt(usage, sys.argv[1:], version=version)
@@ -102,6 +118,7 @@ Typical workflow:
         "run": run_leco,
         "cluster": cluster_languages,
         "plot": plot_results,
+        "sensitivity": sensitivity_analysis,
     }
 
     # Determine the subcommand and call the corresponding function

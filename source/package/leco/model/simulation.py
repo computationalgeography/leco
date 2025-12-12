@@ -41,7 +41,7 @@ def mutate_profile(
     return list(mutated_profiles), mutations_count
 
 
-def simulate(p: dict, directory: Path) -> None:
+def simulate(p: dict, directory: Path, sensitivity: bool = False) -> None | float:
     """Run the LECo model of Linguistic Evolutionary COmputations."""
     # Initialize seed
     rng = np.random.default_rng(p["initialization"]["seed"])
@@ -113,6 +113,7 @@ def simulate(p: dict, directory: Path) -> None:
         population["language_profile"], external_change = interact(
             np.stack(population["language_profile"]),
             p["interaction"],
+            p["language"]["meanings"],
             population.geometry,
             barrier,
             p["barrier"]["impermeability"],
@@ -130,5 +131,16 @@ def simulate(p: dict, directory: Path) -> None:
     # Save meta data to csv file
     meta_data.to_csv(directory / "meta_data.csv", index=False)
 
+    if sensitivity:
+        # Calculate proportion of external changes compared to internal changes
+        md = meta_data.copy()
 
-# %%
+        # Calculate the proportion of external changes compared to total changes per step
+        total_changes_per_step = md["internal_change"] + md["external_change"]
+
+        # Exclude steps with no changes at all
+        mask = total_changes_per_step != 0
+        proportion_per_step = (md["external_change"] / total_changes_per_step)[mask]
+        average_proportion = proportion_per_step.mean()
+
+        return average_proportion
