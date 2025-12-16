@@ -43,6 +43,18 @@ def mutate_profile(
     return list(mutated_profiles), mutations_count
 
 
+def format_dataset_name(name, step):
+    return f"{name}{step:03d}.geoparquet"
+
+
+def write(dataframe, name: str, step: int) -> None:
+    dataframe.to_parquet(format_dataset_name(name, step))
+
+
+def read(name: str, step: int) -> None:
+    return dataframe.from_parquet(format_dataset_name(name, step))
+
+
 def simulate(p: dict, directory: Path, sensitivity: bool = False) -> None | float:
     """Run the LECo model of Linguistic Evolutionary COmputations."""
     # Initialize seed
@@ -78,6 +90,8 @@ def simulate(p: dict, directory: Path, sensitivity: bool = False) -> None | floa
     )
 
     # Write initialization dataframe to a .geoparquet file
+    # Use input and output functions and pass in a time step if the data is temporal
+    # Time step 0 can be used as the initial state
     population.to_parquet(directory / "output000.geoparquet")
 
     for step in tqdm(range(1, p["initialization"]["steps"] + 1)):
