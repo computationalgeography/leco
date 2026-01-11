@@ -37,13 +37,14 @@ def read_geoparquet(
 def language_classification(
     language_profiles: np.ndarray[int],
     dist_threshold: float,
+    linkage: str,
 ) -> np.ndarray[int]:
     """Group language profiles into languages based on distance threshold using hierarchical clustering."""
     clustering = AgglomerativeClustering(
         n_clusters=None,
         distance_threshold=dist_threshold,  # Threshold for clustering
         metric="hamming",
-        linkage="complete",
+        linkage=linkage,
     )  # Average linkage calculates over the mean of the distances between all points in the clusters
 
     return clustering.fit_predict(language_profiles)
@@ -55,21 +56,32 @@ def check_cluster_coherence(language_profiles: np.ndarray[int], dist_threshold) 
     return np.all(distances <= dist_threshold)
 
 
-def initialize_languages(start_population: gpd.GeoDataFrame, dist_threshold: float) -> np.ndarray[int]:
+def initialize_languages(
+    start_population: gpd.GeoDataFrame,
+    dist_threshold: float,
+    linkage: str,
+) -> np.ndarray[int]:
     """Initialize languages for the first time_step based on coherence."""
     language_profiles = np.stack(start_population["language_profile"])
     if len(start_population) == 1:
         return np.array([0])
-    clusters = language_classification(language_profiles, dist_threshold)
+    clusters = language_classification(language_profiles, dist_threshold, linkage)
 
     return clusters
 
 
-def split_cluster_agglomerative(language_profiles: np.ndarray[int], dist_threshold: float) -> np.ndarray[int]:
+def split_cluster_agglomerative(
+    language_profiles: np.ndarray[int],
+    dist_threshold: float,
+    linkage: str,
+) -> np.ndarray[int]:
     """Split using agglomerative clustering with distance threshold."""
 
     clustering = AgglomerativeClustering(
-        n_clusters=None, distance_threshold=dist_threshold, linkage="complete", metric="hamming"
+        n_clusters=None,
+        distance_threshold=dist_threshold,
+        linkage=linkage,
+        metric="hamming",
     )
     labels = clustering.fit_predict(language_profiles)
 
@@ -80,14 +92,19 @@ def find_modal_profile(language_profiles: np.ndarray[int]) -> np.ndarray[int]:
     """Calculate the mode (most common value) for each categorical variable."""
     # For each column/feature, find the most common value
     return np.array(
-        [np.bincount(language_profiles[:, i]).argmax() for i in range(language_profiles.shape[1])]
+        [
+            np.bincount(language_profiles[:, i]).argmax()
+            for i in range(language_profiles.shape[1])
+        ]
     )
 
 
 def find_assigned_languages(new_step: gpd.GeoDataFrame) -> dict[int]:
     """Return list of currently assigned languages in the new step."""
     assigned_langs = (
-        new_step.loc[new_step["language"].notna() & (new_step["language"] != -1), "language"]
+        new_step.loc[
+            new_step["language"].notna() & (new_step["language"] != -1), "language"
+        ]
         .astype(int)
         .unique()
         .tolist()
@@ -125,11 +142,12 @@ def get_neighboring_languages(
 def diversify(
     directory: Path,
     dist_threshold: float,
+    radius: float = 60.0,
+    linkage: str = "average",
     sensitivity: bool = False,
-    radius: float = 250.0,
     kmeans: bool = False,
     similar: bool = True,
-    merge: bool = True,
+    merge: bool = False,
 ) -> int:
     """Feed-forward clustering of the language profiles into languages
     following evolutionary diversification processes."""
@@ -146,8 +164,14 @@ def diversify(
     for time_step in tqdm(population["time_step"].unique()):
         if time_step == 0:
             # First time_step: initialize the start languages
-            clusters = initialize_languages(population[population["time_step"] == 0], dist_threshold)
-            population.loc[population["time_step"] == 0, "language"] = clusters.astype(int)
+            clusters = initialize_languages(
+                population[population["time_step"] == 0],
+                dist_threshold,
+                linkage,
+            )
+            population.loc[population["time_step"] == 0, "language"] = clusters.astype(
+                int
+            )
             max_language_id = clusters.max()
             continue
 
@@ -166,7 +190,8 @@ def diversify(
             # Get IDs of newborn agents that are born in the current time_step
             # and whose parents spoke this language in previous time_step
             lang_newborn_agent_ids = new_step[
-                (~new_step["id"].isin(old_step["id"])) & (new_step["parent_id"].isin(lang_old_agent_ids))
+                (~new_step["id"].isin(old_step["id"]))
+                & (new_step["parent_id"].isin(lang_old_agent_ids))
             ]["id"]
             # Combine old and newborn agent IDs
             lang_agent_ids = pd.concat([lang_old_agent_ids, lang_newborn_agent_ids])
@@ -194,9 +219,13 @@ def diversify(
                 # Split the language into multiple languages
                 # Use KMeans to split into two clusters or agglomerative clustering with distance threshold
                 if kmeans is True:
-                    clusters = KMeans(n_clusters=2, random_state=0).fit_predict(new_profiles)
+                    clusters = KMeans(n_clusters=2, random_state=0).fit_predict(
+                        new_profiles
+                    )
                 else:
-                    clusters = split_cluster_agglomerative(new_profiles, dist_threshold)
+                    clusters = split_cluster_agglomerative(
+                        new_profiles, dist_threshold, linkage
+                    )
                 # Get the indices in the dataframe in new_step that correspond to these agents
                 agent_indices = new_step.index[agent_mask]
                 # Find the number of new languages created and the counts of each language
@@ -206,7 +235,9 @@ def diversify(
                     # Find the cluster that is most similar to the original language to retain original ID
                     # Calculate the modal profile from the speakers of the original language
                     old_profiles = np.stack(
-                        old_step[old_step["id"].isin(lang_old_agent_ids)]["language_profile"]
+                        old_step[old_step["id"].isin(lang_old_agent_ids)][
+                            "language_profile"
+                        ]
                     )
                     original_mode = find_modal_profile(old_profiles)
 
@@ -218,7 +249,9 @@ def diversify(
                         cluster_modes.append(modal)
 
                     # Calculate Hamming distance to original profile mode
-                    distances = [np.sum(mode != original_mode) for mode in cluster_modes]
+                    distances = [
+                        np.sum(mode != original_mode) for mode in cluster_modes
+                    ]
                     favorable_cluster = unique_labels[np.argmin(distances)]
                 else:
                     # Find the largest cluster to retain the original language ID
@@ -232,7 +265,9 @@ def diversify(
                     else:
                         # Other clusters get temporary language IDs
                         max_language_id += 1
-                        new_clusters.append([selected_idx.tolist(), int(max_language_id)])
+                        new_clusters.append(
+                            [selected_idx.tolist(), int(max_language_id)]
+                        )
 
         # Check if new clusters overlap in similarity with existing languages
         if merge is False:
@@ -242,7 +277,9 @@ def diversify(
 
         for agent_idx_list, label in new_clusters:
             if len(agent_idx_list) == 0:
-                logging.debug(f"No agents in cluster {label} at time_step {time_step}, skipping.")
+                logging.debug(
+                    f"No agents in cluster {label} at time_step {time_step}, skipping."
+                )
                 continue
 
             if merge is True:
@@ -259,10 +296,14 @@ def diversify(
             # Check if any neighboring language clusters have a similarity below the distance threshold
             for neighbor_language in neighboring_languages:
                 # Get the language profiles of agents in the new cluster
-                cluster_profiles = np.stack(new_step.loc[agent_idx_list, "language_profile"])
+                cluster_profiles = np.stack(
+                    new_step.loc[agent_idx_list, "language_profile"]
+                )
                 # Get the language profiles of agents speaking the neighboring language
                 other_profiles = np.stack(
-                    new_step[new_step["language"] == neighbor_language]["language_profile"]
+                    new_step[new_step["language"] == neighbor_language][
+                        "language_profile"
+                    ]
                 )
 
                 # Combine all language profiles and check whether they form a coherent cluster
@@ -281,19 +322,27 @@ def diversify(
             # If agents in the new cluster have not been assigned a language yet, assign a new language ID
             language_values = new_step.loc[agent_idx_list, "language"]
             if (language_values.isna() | (language_values == -1)).all():
-                logging.debug(f"Assigning new language {label} to cluster at time_step {time_step}")
+                logging.debug(
+                    f"Assigning new language {label} to cluster at time_step {time_step}"
+                )
                 new_step.loc[agent_idx_list, "language"] = label
 
         # Update population with new language assignments
-        population.loc[population["time_step"] == time_step, "language"] = new_step["language"].astype(int)
+        population.loc[population["time_step"] == time_step, "language"] = new_step[
+            "language"
+        ].astype(int)
 
     logging.info(f"Total language shifts due to merging: {shift_counter}")
     # Save output to a single gpkg file
-    population.to_file(directory / "population.gpkg", driver="GPKG")
+    population.to_file(directory / f"population_{linkage}.gpkg", driver="GPKG")
 
     if sensitivity:
         # Compute number of unique languages at the last time step
         last_step = int(population["time_step"].max())
-        languages_last = population.loc[population["time_step"] == last_step, "language"].unique()
-        logging.info(f"Last time step: {last_step}; number of languages: {len(languages_last)}")
+        languages_last = population.loc[
+            population["time_step"] == last_step, "language"
+        ].unique()
+        logging.info(
+            f"Last time step: {last_step}; number of languages: {len(languages_last)}"
+        )
         return len(languages_last)

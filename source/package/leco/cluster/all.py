@@ -35,46 +35,73 @@ def read_geoparquet(
 def language_classification(
     language_profiles: np.ndarray[int],
     dist_threshold: float,
+    linkage: str,
 ) -> np.ndarray[int]:
     """Group language profiles into languages based on distance threshold using hierarchical clustering."""
     clustering = AgglomerativeClustering(
         n_clusters=None,
         distance_threshold=dist_threshold,  # Threshold for clustering
         metric="hamming",
-        linkage="complete",
+        linkage=linkage,
     )  # Average linkage calculates over the mean of the distances between all points in the clusters
 
     return clustering.fit_predict(language_profiles)
 
 
-def dynamic_clustering(population: gpd.GeoDataFrame, dist_threshold: float) -> gpd.GeoDataFrame:
+def dynamic_clustering(
+    population: gpd.GeoDataFrame,
+    dist_threshold: float,
+    linkage: str,
+) -> gpd.GeoDataFrame:
     """Cluster language profiles into languages for each time step separately."""
     clustered_dfs = []
 
     for _time_step, step_data in population.groupby("time_step"):
         language_profiles = np.stack(step_data["language_profile"])
-        step_data["language"] = language_classification(language_profiles, dist_threshold)
+        step_data["language"] = language_classification(
+            language_profiles,
+            dist_threshold,
+            linkage,
+        )
 
     return pd.concat(clustered_dfs, ignore_index=True)
 
 
-def classify_all(directory: Path, dist_threshold: float, sensitivity: bool = False) -> None | float:
+def classify_all(
+    directory: Path,
+    dist_threshold: float,
+    # linkage: str = "complete",
+    sensitivity: bool = False,
+    jump: int = 3,
+) -> None | float:
     """Run the LECo model of language evolution."""
     # Read in the population data across all time steps
     population = read_geoparquet(directory)
 
-    # Cluster the language profiles into languages based on the distance threshold
-    population["language"] = language_classification(
-        np.stack(population["language_profile"]),
-        dist_threshold,
-    )
+    population = population[population["time_step"] % jump == 0]
 
-    # Save output to a single gpkg file
-    population.to_file(directory / "population_all.gpkg", driver="GPKG")
+    linkages = ["complete", "average", "single"]
+
+    for linkage in linkages:
+        # Cluster the language profiles into languages based on the distance threshold
+        population["language"] = language_classification(
+            np.stack(population["language_profile"]),
+            dist_threshold,
+            linkage,
+        )
+
+        # Save output to a single gpkg file
+        population.to_file(
+            directory / f"population_all_{linkage}_jump{jump}.gpkg", driver="GPKG"
+        )
 
     if sensitivity:
         # Compute number of unique languages at the last time step
         last_step = int(population["time_step"].max())
-        languages_last = population.loc[population["time_step"] == last_step, "language"].unique()
-        logging.info(f"Last time step: {last_step}; number of languages: {len(languages_last)}")
+        languages_last = population.loc[
+            population["time_step"] == last_step, "language"
+        ].unique()
+        logging.info(
+            f"Last time step: {last_step}; number of languages: {len(languages_last)}"
+        )
         return len(languages_last)
