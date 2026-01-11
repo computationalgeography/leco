@@ -27,7 +27,7 @@ def effective_growth(r: float, carrying_capacity: int, nr_agents: int) -> float:
 
 
 def set_birth_rate(
-    pop_dynamics: dict[float, float, bool, int, float],
+    pop_dynamics: dict[float, float, bool, float, float],
     init_population: int,
     nr_agents: int,
     time_step: int,
@@ -42,10 +42,14 @@ def set_birth_rate(
         return pop_dynamics["birth_rate"]
 
     # If logistic growth is applied and end of growth period is not reached, calculate the dynamic birth rate
-    carrying_capacity = init_population * pop_dynamics["multiplier"]  # Calculate the carrying capacity
+    carrying_capacity = (
+        init_population * pop_dynamics["multiplier"]
+    )  # Calculate the carrying capacity
     # Compute intrinsic growth rate, r, which is constant based on initial population,
     # carrying capacity and duration of growth period
-    r = compute_r(init_population, carrying_capacity, pop_dynamics["end_growth_time"])
+    r = compute_r(
+        init_population, int(carrying_capacity), pop_dynamics["end_growth_time"]
+    )
     # Calculate the effective growth rate at the current population size
     effective_growth_rate = effective_growth(r, carrying_capacity, nr_agents)
     # The effective growth rate represent the difference between birth and death rate
@@ -54,7 +58,7 @@ def set_birth_rate(
 
 def population_dynamics(
     population: gpd.GeoDataFrame,
-    pop_dynamics: dict[float, float, bool, int, float],
+    pop_dynamics: dict[float, float, bool, float, float],
     init_population: int,
     time_step: int,
     max_id: int,
