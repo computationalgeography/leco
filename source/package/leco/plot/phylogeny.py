@@ -9,7 +9,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 import ete3
-from ete3 import Tree, TreeStyle, NodeStyle
+
+# from ete3 import Tree, TreeStyle, NodeStyle
 import networkx as nx
 
 
@@ -23,12 +24,15 @@ def postprocess_phylogeny(population: gpd) -> pd.DataFrame:
             # This should be the -1 parent_id
         else:
             # Get the parent ids of agents speaking this language at t_birth
-            parent_ids = group[group["time_step"] == t_birth]["id"].dropna().unique().tolist()
+            parent_ids = (
+                group[group["time_step"] == t_birth]["id"].dropna().unique().tolist()
+            )
             # Find what languages those parents spoke at t_birth - 1
             parent_languages = (
-                population[(population["time_step"] == t_birth - 1) & (population["id"].isin(parent_ids))][
-                    "language"
-                ]
+                population[
+                    (population["time_step"] == t_birth - 1)
+                    & (population["id"].isin(parent_ids))
+                ]["language"]
                 .unique()
                 .tolist()
             )
@@ -62,7 +66,9 @@ def test_ete3(df, OutputPath: Path):
         if not children:
             return str(node)
         else:
-            subtrees = [build_newick_subtree(c, graph, internal_node_id) for c in children]
+            subtrees = [
+                build_newick_subtree(c, graph, internal_node_id) for c in children
+            ]
             # Create an internal node label for this node to keep track
             internal_label = f"InternalNode{internal_node_id[0]}"
             internal_node_id[0] += 1
@@ -105,7 +111,9 @@ def test_ete3(df, OutputPath: Path):
         ts.show_leaf_name = True
         ts.show_branch_length = False
         ts.scale = 300  # Control scale of tree (adjust as needed)
-        ts.title.add_face(ete3.TextFace(f"Phylogeny from root {root}", fsize=14), column=0)
+        ts.title.add_face(
+            ete3.TextFace(f"Phylogeny from root {root}", fsize=14), column=0
+        )
         ts.show_scale = True
 
     # Create figure with subplots (one per root)
@@ -161,7 +169,9 @@ def test_ete3(df, OutputPath: Path):
 
     plt.suptitle("Language Phylogenies by Root (ETE3)", fontsize=16)
     plt.tight_layout()
-    plt.savefig(OutputPath / "combined_ete3_phylogenies.png", dpi=300, bbox_inches="tight")
+    plt.savefig(
+        OutputPath / "combined_ete3_phylogenies.png", dpi=300, bbox_inches="tight"
+    )
 
 
 def create_phylogeny(input_file: Path):

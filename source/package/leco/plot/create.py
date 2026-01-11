@@ -10,7 +10,7 @@ import numpy as np
 
 from .animation import plot_animation
 from .interactive_3d import plot_3d_fig
-from .phylogeny import create_phylogeny
+# from .phylogeny import create_phylogeny
 from .summary import plot_summaries
 
 
@@ -62,7 +62,7 @@ def plot(
     plot_animation(data, parameters, cmap)
 
     logging.debug("Create phylogeny of the leco model output")
-    create_phylogeny(data)
+    #create_phylogeny(data)
 
     logging.debug("Create 3D interactive plot of the leco model output")
     plot_3d_fig(data, cmap)
