@@ -10,7 +10,7 @@ import numpy as np
 
 from .animation import plot_animation
 from .interactive_3d import plot_3d_fig
-# from .phylogeny import create_phylogeny
+
 from .summary import plot_summaries
 
 
@@ -23,7 +23,9 @@ def create_colormap(
     nr_colors = 20
     base_cmaps = ["Greys", "Purples", "Reds", "Blues", "Oranges", "Greens", "RdPu"]
 
-    raw_colors = np.concatenate([plt.get_cmap(name)(np.linspace(0.2, 0.8, nr_colors)) for name in base_cmaps])
+    raw_colors = np.concatenate(
+        [plt.get_cmap(name)(np.linspace(0.2, 0.8, nr_colors)) for name in base_cmaps]
+    )
 
     rng.shuffle(raw_colors)
     # Create a deterministic assignment based on language names
@@ -53,7 +55,9 @@ def plot(
     """Create plots of the leco model output."""
     population = gpd.read_file(data)
 
-    cmap, lang_to_index = create_colormap(population.language, parameters["initialization"]["seed"])
+    cmap, lang_to_index = create_colormap(
+        population.language, parameters["initialization"]["seed"]
+    )
 
     logging.debug("Create summarizing plots of the leco model output")
     plot_summaries(data, cmap, lang_to_index)
@@ -61,8 +65,6 @@ def plot(
     logging.debug("Create animation of the leco model output")
     plot_animation(data, parameters, cmap)
 
-    logging.debug("Create phylogeny of the leco model output")
-    #create_phylogeny(data)
-
     logging.debug("Create 3D interactive plot of the leco model output")
-    plot_3d_fig(data, cmap)
+    # Creates interactive plot so only use this when running locally
+    # plot_3d_fig(data, cmap)
