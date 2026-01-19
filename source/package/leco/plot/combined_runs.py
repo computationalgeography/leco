@@ -6,7 +6,6 @@ from tqdm import tqdm
 
 import geopandas as gpd
 import pandas as pd
-import matplotlib.pyplot as plt
 import numpy as np
 import re
 
@@ -50,6 +49,7 @@ def mean_std_languages_per_run(
     born_languages_per_seed = []
     extinct_languages_per_seed = []
     language_counts_per_seed = []
+    language_speakers_per_seed = []
 
     for gdf in gdfs:
         # Get languages present at each time step
@@ -87,10 +87,19 @@ def mean_std_languages_per_run(
         language_counts = languages_by_time.apply(len)  # Count languages in each set
         language_counts_per_seed.append(language_counts.values)
 
+        # language_speakers = languages_by_time["id"].count().unstack(fill_value=0)
+        language_speakers = (
+            gdf.groupby(["time_step", "language"])["id"].count().unstack(fill_value=0)
+        )
+        print(f"language_speakers fill_value = 0 {language_speakers}")
+        language_speakers_per_seed.append(np.mean(language_speakers, axis=0))
+        print(f"mean: {np.mean(language_speakers, axis = 0)}")
+
     # Convert to arrays and calculate mean and std across seeds
     born_languages_array = np.array(born_languages_per_seed)
     extinct_languages_array = np.array(extinct_languages_per_seed)
     language_counts_array = np.array(language_counts_per_seed)
+    language_speakers_array = np.array(language_speakers_per_seed)
 
     mean_born = np.mean(born_languages_array, axis=0)
     std_born = np.std(born_languages_array, axis=0)
@@ -98,6 +107,8 @@ def mean_std_languages_per_run(
     std_extinct = np.std(extinct_languages_array, axis=0)
     mean_counts = np.mean(language_counts_array, axis=0)
     std_counts = np.std(language_counts_array, axis=0)
+    mean_speakers = np.mean(language_speakers_array, axis=0)
+    std_speakers = np.std(language_speakers_array, axis=0)
 
     # Convert timesteps to years
     timesteps_years = timesteps.values * step_to_years
@@ -110,6 +121,8 @@ def mean_std_languages_per_run(
         std_extinct,
         mean_counts,
         std_counts,
+        mean_speakers,
+        std_speakers,
     )
 
 
@@ -212,7 +225,8 @@ def compute_fixation_indices(
 def multiple_runs_fixation_index(
     populations: list[gpd.GeoDataFrame],
 ) -> dict[str, tuple[np.ndarray, np.ndarray]]:
-    """Function that calculates the mean and standard deviation for fixation_index, heterozygosity_total, and mean_heterozygosity_within across multiple populations per timestep."""
+    """Function that calculates the mean and standard deviation for fixation_index, heterozygosity_total, 
+    and mean_heterozygosity_within across multiple populations per timestep."""
 
     metrics = ["fixation_index", "heterozygosity_total", "mean_heterozygosity_within"]
     metrics_per_population = {metric: [] for metric in metrics}
@@ -274,6 +288,8 @@ def calculate_stats_all_scenarios(
                 std_extinct,
                 mean_counts,
                 std_counts,
+                mean_speakers,
+                std_speakers,
             ) = mean_std_languages_per_run(gdfs_for_run, step_to_years)
             fst_stats = multiple_runs_fixation_index(gdfs_for_run)
 
@@ -291,6 +307,8 @@ def calculate_stats_all_scenarios(
                 s_e,
                 m_c,
                 s_c,
+                m_s,
+                s_s,
                 m_f,
                 s_f,
                 m_ht,
@@ -306,6 +324,8 @@ def calculate_stats_all_scenarios(
                 std_extinct,
                 mean_counts,
                 std_counts,
+                mean_speakers,
+                std_speakers,
                 mean_fst,
                 std_fst,
                 mean_het_total,
@@ -325,6 +345,8 @@ def calculate_stats_all_scenarios(
                         "std_extinct": s_e,
                         "mean_languages": m_c,
                         "std_languages": s_c,
+                        "mean_speakers": m_s,
+                        "std_speakers": s_s,
                         "mean_fst": m_f,
                         "std_fst": s_f,
                         "mean_heterozygosity_total": m_ht,
@@ -360,12 +382,20 @@ def extract_files(input_paths: list[Path]) -> list[gpd.GeoDataFrame]:
     return runs
 
 
-def plot_combined(seed_number: int = 5) -> None:
+def from_path_to_gdf(path: Path, name: str) -> list[gpd.GeoDataFrame]:
+    """Returns gdf from list of paths"""
+
+    gpkg = list(path.rglob("*.gpkg"))
+    print(type(gpkg))
+    return gpkg, extract_files(gpkg)
+
+
+def plot_combined(seed_number: int = 1) -> None:
     """Create summarizing plots of the leco model output."""
     # Read in the population data across all time steps
 
     method = "ff"
-    linkage = "average"
+    linkage = "single"
     # work with dictionary to loop through?
 
     """ populated = Path(
@@ -400,13 +430,15 @@ def plot_combined(seed_number: int = 5) -> None:
         "single": organize_by_scenario_and_run(single_populations, single_gpkg),
     } """
 
-    path = Path(f"/scratch/posma002/lecoOutput/few_2000_steps/populations_few_2000/")
+    path = Path("/scratch/posma002/lecoOutput/morris_ff_average/populations/")
     gpkg = list(path.rglob("*.gpkg"))
-    population = extract_files(gpkg)
+    print(type(gpkg))
+    populations = extract_files(gpkg)
+
     output_path = path.parent
     organized_data = {
-        "populated": organize_by_scenario_and_run(
-            population,
+        "few": organize_by_scenario_and_run(
+            populations,
             gpkg,
         )
     }
@@ -414,13 +446,23 @@ def plot_combined(seed_number: int = 5) -> None:
     # Then calculate statistics
     step_to_years = 20
     stats_df = calculate_stats_all_scenarios(organized_data, step_to_years, seed_number)
+    # Create a figure showing the number of languages over time
+    langs = []
+    for pop in populations:
+        number_languages = (
+            pop.groupby("time_step")["language"].nunique().tolist()
+        )
+        langs.append(number_languages)
+    
+    
     print(stats_df)
 
     # Save to CSV
     stats_df.to_csv(
-        output_path / f"language_statistics_{method}_{linkage}_few_2000.csv",
+        output_path / f"language_statistics_{method}_{linkage}.csv",
         index=False,
     )
+
 
 
 if __name__ == "__main__":

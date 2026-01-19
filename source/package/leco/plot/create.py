@@ -9,8 +9,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from .animation import plot_animation
-from .interactive_3d import plot_3d_fig
-
 from .summary import plot_summaries
 
 

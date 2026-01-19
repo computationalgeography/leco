@@ -204,7 +204,7 @@ def interact(
                 similarity_factor = (
                     similarity * interact_attributes["similarity_preference"]
                 )
-                # Neutral factor, diffusion probability is weighted by the inverse of the similarity preference
+                # Neutral factor, diffusion probability is weighted by inverse of the similarity preference
                 neutral_factor = (
                     1 - interact_attributes["similarity_preference"]
                 ) * interact_attributes["diffusion_rate"]

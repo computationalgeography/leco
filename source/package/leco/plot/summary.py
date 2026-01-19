@@ -79,8 +79,8 @@ def language_number_plot(
     plt.close()
 
 
-def language_counts_plot(
-    language_counts: gpd.GeoDataFrame,
+def language_speakers_plot(
+    language_speakers: gpd.GeoDataFrame,
     output_path: Path,
     cmap: mpl.colors.ListedColormap,
     lang_to_index: dict[int, int],
@@ -89,19 +89,19 @@ def language_counts_plot(
     """Plot number of agents speaking a language over time."""
     # Sort the languages by most to least spoken at the first time step,
     # so most spoken languages are shown on the bottom
-    sorted_cols = language_counts.iloc[0].sort_values(ascending=False).index
-    language_counts = language_counts[sorted_cols]
+    sorted_cols = language_speakers.iloc[0].sort_values(ascending=False).index
+    language_speakers = language_speakers[sorted_cols]
 
     # Scale the index to represent years for each time step (assuming each time step is 20 years)
-    language_counts.index = language_counts.index * step_to_years
+    language_speakers.index = language_speakers.index * step_to_years
 
     # Create color list that matches sorted language columns
-    colors = [cmap.colors[lang_to_index[lang]] for lang in language_counts.columns]
+    colors = [cmap.colors[lang_to_index[lang]] for lang in language_speakers.columns]
 
     _fig, ax = plt.subplots(figsize=(10, 6))
 
     # Create a stacked area plot for the number of agents per language over time
-    language_counts.plot.area(
+    language_speakers.plot.area(
         ax=ax,
         stacked=True,
         color=colors,
@@ -109,7 +109,7 @@ def language_counts_plot(
     )
 
     ax.get_legend().remove()  # Remove the legend for clarity
-    ax.set_xlim(language_counts.index.min(), language_counts.index.max())
+    ax.set_xlim(language_speakers.index.min(), language_speakers.index.max())
     ax.set_xlabel("Year", size=18)
     ax.set_ylabel("Number of Agents", size=18)
     ax.tick_params(axis="both", labelsize=14)
@@ -273,8 +273,8 @@ def plot_summaries(
     language_number_plot(output_path, number_languages)
 
     # Create a figure showing the number of agents speaking a language over time
-    language_counts = population.groupby(["time_step", "language"])["id"].count().unstack(fill_value=0)
-    language_counts_plot(language_counts, output_path, cmap, lang_to_index)
+    language_speakers = population.groupby(["time_step", "language"])["id"].count().unstack(fill_value=0)
+    language_speakers_plot(language_speakers, output_path, cmap, lang_to_index)
 
     # Create a figure showing linguistic to geographic distance correlation at the last time step
     last_step = population["time_step"].max()
