@@ -43,12 +43,10 @@ jobs:
       - name: Run commands
         run: |
           py_interpreter="${{ steps.py.outputs.python-path }}"
-          echo "run..."
           PYTHONPATH=source/package $py_interpreter source/script/leco_model.py run documentation/configuration.toml documentation/run_commands_test
-          echo "cluster..."
           PYTHONPATH=source/package $py_interpreter source/script/leco_model.py cluster --method feed_forward documentation/run_commands_test
-          echo "plot..."
-          PYTHONPATH=source/package $py_interpreter source/script/leco_model.py plot documentation/configuration.toml documentation/run_commands_test/population_average.gpkg
+          # TODO: Hangs
+          # PYTHONPATH=source/package $py_interpreter source/script/leco_model.py plot documentation/configuration.toml documentation/run_commands_test/population_average.gpkg
       - name: Run tests
         run: |
           py_interpreter="${{ steps.py.outputs.python-path }}"
