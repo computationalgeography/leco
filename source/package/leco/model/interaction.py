@@ -17,6 +17,10 @@ def nearest_neighbors(
 ) -> list[np.ndarray[int]]:
     """Find all neighboring agents within a radius."""
     # Build a K-Dimensional tree (spatial index)
+    # This is (likely) an expensive operation. It can make sense to keep use a spatial index (the tree) for
+    # storing the positions the index doesn't need to be created each time step. Maybe a geodataframe already
+    # has support for this? Keep this in mind when simulating larger populations.
+    # Also, at the call-size a conversion to a numpy array is made.
     positions_kdt = KDTree(positions)
 
     # Find all neighbors within a radius around an agent
@@ -109,6 +113,7 @@ def calculate_similarity_pairwise(
 
 def interact(
     language_profiles: np.ndarray[int],
+    # What is this for type? In general: many type hints seem wrong.
     interact_attributes: dict[float, float, float, float],
     profile_length: int,
     positions: gpd.GeoDataFrame.geometry,
