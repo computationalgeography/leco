@@ -12,9 +12,7 @@ from shapely import (
 )
 
 
-def nearest_neighbors(
-    positions: np.ndarray[float], radius: float
-) -> list[np.ndarray[int]]:
+def nearest_neighbors(positions: np.ndarray[float], radius: float) -> list[np.ndarray[int]]:
     """Find all neighboring agents within a radius."""
     # Build a K-Dimensional tree (spatial index)
     positions_kdt = KDTree(positions)
@@ -22,10 +20,7 @@ def nearest_neighbors(
     # Find all neighbors within a radius around an agent
     neighbors = positions_kdt.query_ball_point(positions, r=radius)
     # Remove self and store neighbors of every agent in list format
-    return [
-        [n for n in neighbor_list if n != i]
-        for i, neighbor_list in enumerate(neighbors)
-    ]
+    return [[n for n in neighbor_list if n != i] for i, neighbor_list in enumerate(neighbors)]
 
 
 def compute_interact_prob_neighbors(
@@ -55,9 +50,7 @@ def compute_interact_prob_neighbors(
 
     # The neighbors on/behind the barrier have a lower probability to interact,
     # proportional to the impermeability
-    barrier_probability = interact_attributes["partner_probability"] * (
-        1.0 - impermeability
-    )
+    barrier_probability = interact_attributes["partner_probability"] * (1.0 - impermeability)
 
     if impeded_area.contains(agent_pos):
         # If the active agent is positioned on a barrier,
@@ -72,25 +65,17 @@ def compute_interact_prob_neighbors(
     elif isinstance(interaction_area_no_barrier, MultiPolygon):
         # Barrier has split the interaction area in two, keep the area where the agent resides
         valid_interaction_area = next(
-            (
-                geom
-                for geom in interaction_area_no_barrier.geoms
-                if geom.contains(agent_pos)
-            ),
+            (geom for geom in interaction_area_no_barrier.geoms if geom.contains(agent_pos)),
         )
     elif isinstance(interaction_area_no_barrier, Polygon):
         # Barrier has cut off a side of the area, keep the remaining area
         valid_interaction_area = interaction_area_no_barrier
 
     # Add for every neighbor the probability dependent on whether they are located in the valid_int_area
-    nb_positions = get_coordinates(
-        positions[neighbors]
-    )  # Get the positions of the neighbors
+    nb_positions = get_coordinates(positions[neighbors])  # Get the positions of the neighbors
 
     # Check whether the neighbors reside on the reachable area
-    mask = vectorized.contains(
-        valid_interaction_area, nb_positions[:, 0], nb_positions[:, 1]
-    )
+    mask = vectorized.contains(valid_interaction_area, nb_positions[:, 0], nb_positions[:, 1])
 
     # If they reside on the reachable area, assign the high probability, if not the low probability
     return np.where(mask, interact_attributes["partner_prob"], barrier_probability)
@@ -118,9 +103,7 @@ def interact(
 ) -> list[np.ndarray[int], int]:
     """Interaction between agents whereby linguistic diffusion occurs."""
     # Get neighbors for all agents within a radius of int_radius
-    neighbors_list = nearest_neighbors(
-        positions.get_coordinates().to_numpy(), interact_attributes["radius"]
-    )
+    neighbors_list = nearest_neighbors(positions.get_coordinates().to_numpy(), interact_attributes["radius"])
 
     # Get the current number of agents and the number of meanings
     nr_agents, nr_meanings = language_profiles.shape
@@ -162,15 +145,12 @@ def interact(
         neighbors_array = np.array(neighbors)
 
         if len(neighbors_array) != len(interaction_probabilities_nbs):
-            logging.error(
-                "Error! Number of neighbors is not equal to the number of neighbor probabilities!!"
-            )
+            logging.error("Error! Number of neighbors is not equal to the number of neighbor probabilities!!")
 
         # Based on the interaction probabilities, the agent interact with 'partner_prob' proportion
         # of their neighbors
         interaction_mask = (
-            interaction_probabilities[agent_idx, : len(neighbors_array)]
-            < interaction_probabilities_nbs
+            interaction_probabilities[agent_idx, : len(neighbors_array)] < interaction_probabilities_nbs
         )
         # Select the interaction partners
         interacting_neighbors = neighbors_array[interaction_mask]
@@ -182,9 +162,7 @@ def interact(
         rng.shuffle(interacting_neighbors)
 
         # Select the diffusion probabilities for the interacting neighbors
-        agent_diffusion_probabilities = diffusion_probabilities[
-            agent_idx, : len(neighbors), :
-        ]
+        agent_diffusion_probabilities = diffusion_probabilities[agent_idx, : len(neighbors), :]
         agent_diffusion_probabilities = agent_diffusion_probabilities[
             interaction_mask
         ]  # Only keep the probabilities for the interacting neighbors
@@ -201,23 +179,17 @@ def interact(
                     neighbor_profiles[j],
                 )
                 # Similarity factor is weighted by the similarity preference
-                similarity_factor = (
-                    similarity * interact_attributes["similarity_preference"]
-                )
+                similarity_factor = similarity * interact_attributes["similarity_preference"]
                 # Neutral factor, diffusion probability is weighted by inverse of the similarity preference
-                neutral_factor = (
-                    1 - interact_attributes["similarity_preference"]
-                ) * interact_attributes["diffusion_rate"]
+                neutral_factor = (1 - interact_attributes["similarity_preference"]) * interact_attributes[
+                    "diffusion_rate"
+                ]
                 # Adoption probability is the sum of both factors per feature
-                adoption_probability = (
-                    neutral_factor + similarity_factor
-                ) / profile_length
+                adoption_probability = (neutral_factor + similarity_factor) / profile_length
             else:
                 # Avoid calculating pairwise similarity between all agents
                 # Instead use the diffusion rate per feature
-                adoption_probability = (
-                    interact_attributes["diffusion_rate"] / profile_length
-                )
+                adoption_probability = interact_attributes["diffusion_rate"] / profile_length
 
             # Determine which meanings from neighbors' language profiles will be diffused
             diffusion_mask = agent_diffusion_probabilities[j] < adoption_probability

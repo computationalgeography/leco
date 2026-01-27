@@ -21,9 +21,7 @@ def create_colormap(
     nr_colors = 20
     base_cmaps = ["Greys", "Purples", "Reds", "Blues", "Oranges", "Greens", "RdPu"]
 
-    raw_colors = np.concatenate(
-        [plt.get_cmap(name)(np.linspace(0.2, 0.8, nr_colors)) for name in base_cmaps]
-    )
+    raw_colors = np.concatenate([plt.get_cmap(name)(np.linspace(0.2, 0.8, nr_colors)) for name in base_cmaps])
 
     rng.shuffle(raw_colors)
     # Create a deterministic assignment based on language names
@@ -53,9 +51,7 @@ def plot(
     """Create plots of the leco model output."""
     population = gpd.read_file(data)
 
-    cmap, lang_to_index = create_colormap(
-        population.language, parameters["initialization"]["seed"]
-    )
+    cmap, lang_to_index = create_colormap(population.language, parameters["initialization"]["seed"])
 
     logging.debug("Create summarizing plots of the leco model output")
     plot_summaries(data, cmap, lang_to_index)
