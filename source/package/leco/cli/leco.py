@@ -32,6 +32,7 @@ def run_leco(arguments: dict) -> None:
 def cluster_languages(arguments: dict) -> None:
     """Run language classification on the leco model output for a specified method."""
     method = arguments["--method"]
+    linkage = arguments["--linkage"]
     distance_threshold = float(arguments["--distance"])
     directory = Path(arguments["<directory>"])
 
@@ -41,8 +42,22 @@ def cluster_languages(arguments: dict) -> None:
         "feed_forward": diversify,  # Feed-forward diversification-based clustering
     }
 
-    # Call the corresponding function
-    classification_by_method[method](directory, distance_threshold)
+    # Call the corresponding function with appropriate parameters
+    if method == "feed_forward":
+        # Load radius to obtain interaction radius for feed-forward
+        radius = float(arguments["--radius"])
+        classification_by_method[method](
+            directory, 
+            distance_threshold, 
+            linkage, 
+            radius
+        )
+    else:
+        classification_by_method[method](
+            directory, 
+            distance_threshold, 
+            linkage
+        )
 
 
 def plot_results(arguments: dict) -> None:
@@ -87,26 +102,33 @@ Run leco model
 Usage:
     {command} run [--debug] <configuration_file> <directory>
     {command} cluster [--debug] [--method <all|feed_forward>]
-        [--distance <distance_threshold>] <directory>
+        [--linkage <single|average|complete>] [--distance <distance_threshold>]
+        [--radius <radius>] <directory>
     {command} plot [--debug] <configuration_file> <gpkg_file>
     {command} sensitivity [--debug] [--method <all|feed_forward>]
         [--distance <distance_threshold>] <configuration_file> <directory>
 
 Options:
-  -h --help                         Show this screen and exit
-  --version                         Show version and exit
-  <configuration_file>              Path to a TOML configuration file
-  --debug                           Enable debug logging
-  --distance <distance_threshold>   Distance threshold to set clusters [default: 0.3]
-  <gpkg_file>                       Path to a gpkg file created during the clustering
-  <directory>                       Directory to store/read the model output
-  --method <all|feed_forward>       Clustering method to use [default: all]
+  -h --help                             Show this screen and exit
+  --version                             Show version and exit
+  <configuration_file>                  Path to a TOML configuration file
+  --debug                               Enable debug logging
+  --distance <distance_threshold>       Distance threshold to set clusters 
+                                        [default: 0.3]
+  <gpkg_file>                           Path to a gpkg file after clustering
+  <directory>                           Directory to store/read the output
+  --linkage <single|average|complete>   Clustering linkage to use 
+                                        [default: average]
+  --method <all|feed_forward>           Clustering method to use 
+                                        [default: feed_forward]
+  --radius <radius>                     Range of interaction radius required
+                                        for feed-forward method
 
 Typical workflow:
-    {command} run configuration.toml results_20251023
-    {command} cluster --method feed_forward --distance 0.2 results_20251023
+    {command} run configuration.toml results
+    {command} cluster --method all --distance 0.2 --radius 50.0 results
     {command} plot configuration.toml population.gpkg
-    {command} sensitivity --method feed_forward --distance 0.2 configuration.toml sensitivity_results
+    {command} sensitivity configuration.toml sensitivity_results
 """
 
     arguments = docopt.docopt(usage, sys.argv[1:], version=version)

@@ -1,4 +1,5 @@
-"""Cluster language profiles into languages per time_step."""
+"""Feed-forward clustering of the language profiles into languages
+    following evolutionary diversification processes."""
 
 from pathlib import Path
 from tqdm import tqdm
@@ -8,7 +9,7 @@ import logging
 import numpy as np
 import pandas as pd
 from scipy.spatial.distance import pdist
-from sklearn.cluster import AgglomerativeClustering, KMeans
+from sklearn.cluster import AgglomerativeClustering
 
 
 def read_geoparquet(
@@ -139,28 +140,49 @@ def get_neighboring_languages(
     return neighboring_languages
 
 
+def get_neighboring_languages_faster(
+    new_step: gpd.GeoDataFrame,
+    agent_idx_list: list[int],
+    assigned_langs: list[int],
+    radius: float,
+) -> list[int]:
+    """Find languages that are spoken within a certain radius around the language of interest."""
+    
+    # Create buffer around all agents speaking the language with a specified radius
+    cluster_buffer = new_step.loc[agent_idx_list].geometry.unary_union.buffer(radius)
+    
+    # Only look at agents with already assigned languages
+    assigned_mask = new_step["language"].isin(assigned_langs)
+    candidates = new_step.loc[assigned_mask]
+    
+    if candidates.empty:
+        return []
+    
+    intersecting = candidates[candidates.geometry.intersects(cluster_buffer)]
+
+    return intersecting["language"].unique().tolist()
+
+
 def diversify(
     directory: Path,
     dist_threshold: float,
-    radius: float = 60.0,
-    linkage: str = "average",
+    linkage: str,
+    radius: float,
     sensitivity: bool = False,
-    kmeans: bool = False,
     similar: bool = True,
     merge: bool = False,
 ) -> int:
-    """Feed-forward clustering of the language profiles into languages
-    following evolutionary diversification processes."""
+    """"Cluster languages per time step based on clustering previous time step"""
     # Read the population data across all time_steps
     population = read_geoparquet(directory)
-    # Initialize language column as -1
+    # Initialize language column as -1 to keep track of unclassified
     population["language"] = -1
     # Keep track of the maximum language ID assigned
     max_language_id = 0
-
+    # Keep track of the number of language shifts
     shift_counter = 0
 
-    # Iterate over each time_step and cluster language profiles
+    # Iterate over each time_step and check for splits
     for time_step in tqdm(population["time_step"].unique()):
         if time_step == 0:
             # First time_step: initialize the start languages
@@ -178,17 +200,17 @@ def diversify(
         new_step = population[population["time_step"] == time_step]  # .copy()
         old_step = population[population["time_step"] == (time_step - 1)]
 
-        # Clustering is based on the languages present in the previous time_step
+        # Clustering is based on the languages present in the previous time step
         old_languages = old_step["language"].unique()
-        # Collect the new languages formed in this time_step
+        # Collect the new languages formed in this time step
         new_clusters = []
 
-        # Loop through the languages present in the previous time_step
+        # Loop through the languages of the previous time step
         for language in old_languages:
-            # Get IDs of agents speaking this language in previous time_step
+            # Get IDs of agents speaking this language in previous time step
             lang_old_agent_ids = old_step[old_step["language"] == language]["id"]
-            # Get IDs of newborn agents that are born in the current time_step
-            # and whose parents spoke this language in previous time_step
+            # Get IDs of newborn agents that are born in the current time step
+            # and whose parents spoke this language in previous time step
             lang_newborn_agent_ids = new_step[
                 (~new_step["id"].isin(old_step["id"]))
                 & (new_step["parent_id"].isin(lang_old_agent_ids))
@@ -196,11 +218,11 @@ def diversify(
             # Combine old and newborn agent IDs
             lang_agent_ids = pd.concat([lang_old_agent_ids, lang_newborn_agent_ids])
 
-            # Generate mask of previous speakers in the new time_step
+            # Generate mask of previous speakers in the new time step
             agent_mask = new_step["id"].isin(lang_agent_ids)
 
             if agent_mask.sum() == 0:
-                # No agents remain from this language in the new time_step: extinction
+                # No agents remain from this language in the new time step: extinction
                 continue
             if agent_mask.sum() == 1:
                 # Only one agent remains, assign the language directly
@@ -216,16 +238,11 @@ def diversify(
                 # All agents continue speaking the same language
                 new_step.loc[agent_mask, "language"] = language
             else:
-                # Split the language into multiple languages
-                # Use KMeans to split into two clusters or agglomerative clustering with distance threshold
-                if kmeans is True:
-                    clusters = KMeans(n_clusters=2, random_state=0).fit_predict(
-                        new_profiles
-                    )
-                else:
-                    clusters = split_cluster_agglomerative(
-                        new_profiles, dist_threshold, linkage
-                    )
+                # Cluster the current language
+                # This could still be one cluster based on linkage
+                clusters = split_cluster_agglomerative(
+                    new_profiles, dist_threshold, linkage
+                )
                 # Get the indices in the dataframe in new_step that correspond to these agents
                 agent_indices = new_step.index[agent_mask]
                 # Find the number of new languages created and the counts of each language
@@ -257,10 +274,10 @@ def diversify(
                     # Find the largest cluster to retain the original language ID
                     favorable_cluster = unique_labels[np.argmax(counts)]
 
-                for i, label in enumerate(unique_labels):
+                for _i, label in enumerate(unique_labels):
                     selected_idx = agent_indices[clusters == label]
                     if label == favorable_cluster:
-                        # Favorable cluster, either based on size or similarity, get the original ID assigned
+                        # Favorable cluster gets the original language ID assigned
                         new_step.loc[selected_idx, "language"] = int(language)
                     else:
                         # Other clusters get temporary language IDs
@@ -272,13 +289,14 @@ def diversify(
         # Check if new clusters overlap in similarity with existing languages
         if merge is False:
             # Merge defines whether mixed languages can arise: a new language is formed out of two languages
-            # if merge is set to false, only language shifts can take place
+            # if merge is set to false, only language shifts can take place to an already existing language
             assigned_langs = find_assigned_languages(new_step)
 
+        # Loop through the new clusters that have not been assigned yet
         for agent_idx_list, label in new_clusters:
             if len(agent_idx_list) == 0:
                 logging.debug(
-                    f"No agents in cluster {label} at time_step {time_step}, skipping."
+                    f"No agents in cluster {label} at time step {time_step}, skipping."
                 )
                 continue
 
@@ -286,19 +304,20 @@ def diversify(
                 assigned_langs = find_assigned_languages(new_step)
 
             # Find neighboring languages within radius
-            neighboring_languages = get_neighboring_languages(
+            neighboring_languages = get_neighboring_languages_faster(
                 new_step,
                 agent_idx_list,
                 assigned_langs,
                 radius,
             )
 
+            # Get the language profiles of agents in the new cluster
+            cluster_profiles = np.stack(
+                new_step.loc[agent_idx_list, "language_profile"]
+            )
+
             # Check if any neighboring language clusters have a similarity below the distance threshold
             for neighbor_language in neighboring_languages:
-                # Get the language profiles of agents in the new cluster
-                cluster_profiles = np.stack(
-                    new_step.loc[agent_idx_list, "language_profile"]
-                )
                 # Get the language profiles of agents speaking the neighboring language
                 other_profiles = np.stack(
                     new_step[new_step["language"] == neighbor_language][
@@ -334,7 +353,7 @@ def diversify(
 
     logging.info(f"Total language shifts due to merging: {shift_counter}")
     # Save output to a single gpkg file
-    population.to_file(directory / f"population_{linkage}.gpkg", driver="GPKG")
+    population.to_file(directory / f"population_TEST_{linkage}.gpkg", driver="GPKG")
 
     if sensitivity:
         # Compute number of unique languages at the last time step
@@ -345,4 +364,4 @@ def diversify(
         logging.info(
             f"Last time step: {last_step}; number of languages: {len(languages_last)}"
         )
-        return len(languages_last)
+        return len(languages_last)   

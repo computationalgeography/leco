@@ -70,7 +70,7 @@ def dynamic_clustering(
 def classify_all(
     directory: Path,
     dist_threshold: float,
-    # linkage: str = "complete",
+    linkage: str,
     sensitivity: bool = False,
     jump: int = 3,
 ) -> None | float:
