@@ -91,17 +91,11 @@ def classify_all(
         )
 
         # Save output to a single gpkg file
-        population.to_file(
-            directory / f"population_all_{linkage}_jump{jump}.gpkg", driver="GPKG"
-        )
+        population.to_file(directory / f"population_all_{linkage}_jump{jump}.gpkg", driver="GPKG")
 
     if sensitivity:
         # Compute number of unique languages at the last time step
         last_step = int(population["time_step"].max())
-        languages_last = population.loc[
-            population["time_step"] == last_step, "language"
-        ].unique()
-        logging.info(
-            f"Last time step: {last_step}; number of languages: {len(languages_last)}"
-        )
+        languages_last = population.loc[population["time_step"] == last_step, "language"].unique()
+        logging.info(f"Last time step: {last_step}; number of languages: {len(languages_last)}")
         return len(languages_last)

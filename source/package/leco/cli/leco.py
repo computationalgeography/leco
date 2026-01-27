@@ -46,18 +46,9 @@ def cluster_languages(arguments: dict) -> None:
     if method == "feed_forward":
         # Load radius to obtain interaction radius for feed-forward
         radius = float(arguments["--radius"])
-        classification_by_method[method](
-            directory, 
-            distance_threshold, 
-            linkage, 
-            radius
-        )
+        classification_by_method[method](directory, distance_threshold, linkage, radius)
     else:
-        classification_by_method[method](
-            directory, 
-            distance_threshold, 
-            linkage
-        )
+        classification_by_method[method](directory, distance_threshold, linkage)
 
 
 def plot_results(arguments: dict) -> None:
@@ -113,13 +104,13 @@ Options:
   --version                             Show version and exit
   <configuration_file>                  Path to a TOML configuration file
   --debug                               Enable debug logging
-  --distance <distance_threshold>       Distance threshold to set clusters 
+  --distance <distance_threshold>       Distance threshold to set clusters
                                         [default: 0.3]
   <gpkg_file>                           Path to a gpkg file after clustering
   <directory>                           Directory to store/read the output
-  --linkage <single|average|complete>   Clustering linkage to use 
+  --linkage <single|average|complete>   Clustering linkage to use
                                         [default: average]
-  --method <all|feed_forward>           Clustering method to use 
+  --method <all|feed_forward>           Clustering method to use
                                         [default: feed_forward]
   --radius <radius>                     Range of interaction radius required
                                         for feed-forward method

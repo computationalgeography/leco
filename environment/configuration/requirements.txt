@@ -1,7 +1,6 @@
 build
 datetime
 docopt
-ete3
 geopandas
 matplotlib
 networkx
