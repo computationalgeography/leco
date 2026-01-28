@@ -364,7 +364,7 @@ def diversify(
 
     logging.info(f"Total language shifts due to merging: {shift_counter}")
     # Save output to a single gpkg file
-    population.to_file(directory / f"population_TEST2_{linkage}.gpkg", driver="GPKG")
+    population.to_file(directory / f"population_{linkage}.gpkg", driver="GPKG")
 
     if sensitivity:
         # Compute number of unique languages at the last time step
