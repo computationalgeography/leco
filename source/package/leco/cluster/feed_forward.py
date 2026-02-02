@@ -66,6 +66,7 @@ def check_cluster_coherence_faster(language_profiles: np.ndarray[int], dist_thre
     if n <= 1:
         return True
 
+    ## round to two decimals and check
     # Check distances with early exit
     for i in range(n):
         for j in range(i + 1, n):
@@ -89,24 +90,6 @@ def initialize_languages(
     clusters = language_classification(language_profiles, dist_threshold, linkage)
 
     return clusters
-
-
-def split_cluster_agglomerative(
-    language_profiles: np.ndarray[int],
-    dist_threshold: float,
-    linkage: str,
-) -> np.ndarray[int]:
-    """Split using agglomerative clustering with distance threshold."""
-
-    clustering = AgglomerativeClustering(
-        n_clusters=None,
-        distance_threshold=dist_threshold,
-        linkage=linkage,
-        metric="hamming",
-    )
-    labels = clustering.fit_predict(language_profiles)
-
-    return labels
 
 
 def find_modal_profile(language_profiles: np.ndarray[int]) -> np.ndarray[int]:
@@ -219,7 +202,8 @@ def find_splitting_events(
         # Extract language profiles of the previous speakers
         new_profiles = np.stack(new_step.loc[agent_mask, "language_profile"])
         # Check cluster coherence (max distance between any two profiles <= threshold)
-        coherence = check_cluster_coherence_faster(new_profiles, dist_threshold)
+        # coherence = check_cluster_coherence_faster(new_profiles, dist_threshold)
+        coherence = check_cluster_coherence(new_profiles, dist_threshold)
 
         if coherence is True:
             # All agents continue speaking the same language
@@ -227,7 +211,7 @@ def find_splitting_events(
         else:
             # Cluster the current language
             # This could still be one cluster based on linkage
-            clusters = split_cluster_agglomerative(new_profiles, dist_threshold, linkage)
+            clusters = language_classification(new_profiles, dist_threshold, linkage)
             # Get the indices in the dataframe in new_step that correspond to these agents
             agent_indices = new_step.index[agent_mask]
             # Find the number of new languages created and the counts of each language
@@ -342,6 +326,7 @@ def diversify(
 
                 # Combine all language profiles and check whether they form a coherent cluster
                 combined_profiles = np.vstack([cluster_profiles, other_profiles])
+                # coherence = check_cluster_coherence_faster(combined_profiles, dist_threshold)
                 coherence = check_cluster_coherence(combined_profiles, dist_threshold)
 
                 if coherence:
