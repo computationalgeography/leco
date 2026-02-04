@@ -57,27 +57,6 @@ def check_cluster_coherence(language_profiles: np.ndarray[int], dist_threshold) 
     return np.all(distances <= dist_threshold)
 
 
-def check_cluster_coherence_faster(language_profiles: np.ndarray[int], dist_threshold) -> bool:
-    """Check if maximum distance between language profiles in a cluster is within the distance threshold."""
-
-    n = len(language_profiles)
-
-    # Early exit for single profile
-    if n <= 1:
-        return True
-
-    ## round to two decimals and check
-    # Check distances with early exit
-    for i in range(n):
-        for j in range(i + 1, n):
-            # Hamming distance: proportion of differing elements
-            distance = np.mean(language_profiles[i] != language_profiles[j])
-            if distance >= dist_threshold:
-                return False
-
-    return True
-
-
 def initialize_languages(
     start_population: gpd.GeoDataFrame,
     dist_threshold: float,
@@ -112,33 +91,6 @@ def find_assigned_languages(new_step: gpd.GeoDataFrame) -> dict[int]:
 
 
 def get_neighboring_languages(
-    new_step: gpd.GeoDataFrame,
-    agent_idx_list: list[int],
-    assigned_langs: list[int],
-    radius: float,
-) -> list[int]:
-    """Find languages that are spoken within a certain radius around the language of interest."""
-    # Get geometries of the agents speaking the language of interest
-    cluster_geoms = new_step.loc[agent_idx_list].geometry
-
-    # Create a buffer around the cluster with a specified radius
-    cluster_buffer = cluster_geoms.unary_union.buffer(radius)
-
-    neighboring_languages = []
-
-    for lang in assigned_langs:
-        # Find the geometries of agents speaking this language
-        lang_mask = new_step["language"] == lang
-
-        lang_geoms = new_step.loc[lang_mask].geometry
-        if lang_geoms.intersects(cluster_buffer).any():
-            # If agents' geometries intersect with the buffer, add the language to the list
-            neighboring_languages.append(lang)
-
-    return neighboring_languages
-
-
-def get_neighboring_languages_faster(
     new_step: gpd.GeoDataFrame,
     agent_idx_list: list[int],
     assigned_langs: list[int],
@@ -202,7 +154,6 @@ def find_splitting_events(
         # Extract language profiles of the previous speakers
         new_profiles = np.stack(new_step.loc[agent_mask, "language_profile"])
         # Check cluster coherence (max distance between any two profiles <= threshold)
-        # coherence = check_cluster_coherence_faster(new_profiles, dist_threshold)
         coherence = check_cluster_coherence(new_profiles, dist_threshold)
 
         if coherence is True:
@@ -267,11 +218,21 @@ def diversify(
     population["language"] = -1
     # Keep track of the maximum language ID assigned
     max_language_id = 0
-    # Keep track of the number of language shifts
-    shift_counter = 0
+
+    # Create a dataframe to store data on the language shifts and merges
+    meta_data = pd.DataFrame(
+        {
+            "time_step": [0],
+            "shifts": [0],
+            # "merges": [0], # For a later moment to potentially includ merges
+        }
+    )
 
     # Iterate over each time_step and check for splits
     for time_step in tqdm(population["time_step"].unique()):
+        # Keep track of the number of language shifts
+        shift_counter = 0
+
         if time_step == 0:
             # First time_step: initialize the start languages
             clusters = initialize_languages(
@@ -294,7 +255,7 @@ def diversify(
         # Check if new clusters overlap in similarity with existing languages
         if merge is False:
             # Merge defines whether mixed languages can arise: a new language is formed out of two languages
-            # if merge is set to false, only language shifts can take place to an already existing language
+            # if merge is set to false, only language shifts can take place to a previously assigned language
             assigned_langs = find_assigned_languages(new_step)
 
         # Loop through the new clusters that have not been assigned yet
@@ -304,10 +265,11 @@ def diversify(
                 continue
 
             if merge is True:
+                # New clusters can merge with newly assigned languages
                 assigned_langs = find_assigned_languages(new_step)
 
             # Find neighboring languages within radius
-            neighboring_languages = get_neighboring_languages_faster(
+            neighboring_languages = get_neighboring_languages(
                 new_step,
                 agent_idx_list,
                 assigned_langs,
@@ -326,7 +288,6 @@ def diversify(
 
                 # Combine all language profiles and check whether they form a coherent cluster
                 combined_profiles = np.vstack([cluster_profiles, other_profiles])
-                # coherence = check_cluster_coherence_faster(combined_profiles, dist_threshold)
                 coherence = check_cluster_coherence(combined_profiles, dist_threshold)
 
                 if coherence:
@@ -347,9 +308,14 @@ def diversify(
         # Update population with new language assignments
         population.loc[population["time_step"] == time_step, "language"] = new_step["language"].astype(int)
 
-    logging.info(f"Total language shifts due to merging: {shift_counter}")
+        # Record meta data for this time step
+        meta_data.loc[len(meta_data)] = [time_step, shift_counter]
+
     # Save output to a single gpkg file
     population.to_file(directory / f"population_{linkage}.gpkg", driver="GPKG")
+
+    # Save meta data to csv file
+    meta_data.to_csv(directory / "meta_data_cluster.csv", index=False)
 
     if sensitivity:
         # Compute number of unique languages at the last time step
