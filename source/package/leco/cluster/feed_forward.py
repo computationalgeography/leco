@@ -183,7 +183,7 @@ def find_splitting_events(
 
                 # Calculate Hamming distance to original profile mode
                 distances = [np.sum(mode != original_mode) for mode in cluster_modes]
-                # Returns first occurence when there is a tie
+                # Returns first occurrence when there is a tie
                 favorable_cluster = unique_labels[np.argmin(distances)]
             else:
                 # Find the largest cluster to retain the original language ID
@@ -224,7 +224,7 @@ def diversify(
         {
             "time_step": [0],
             "shifts": [0],
-            # "merges": [0], # For a later moment to potentially includ merges
+            # "merges": [0], # For a later moment to potentially include merges
         }
     )
 
