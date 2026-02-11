@@ -17,6 +17,13 @@ def read_geoparquet(
     file_pattern: str = "*.geoparquet",
 ) -> gpd.GeoDataFrame:
     """Read in multiple geoparquet files with time_steps in filenames."""
+    # ~ (nitpicking): This approach is a bit brittle. If I copy a .geoparquet file in the directory with
+    # unexpected content, it gets picked up here and will brake things.
+    # Try to be as explicit as possible. Generalize only if needed. You know some things:
+    # - The format of the file. No need for a file pattern.
+    # - The time steps as well(?). If so, no need for globbing for files. Just open the files that should be
+    #   there. Do you know the range (min / max time step)?
+
     # Find all matching files
     file_paths = list(directory.glob(file_pattern))
 
@@ -31,6 +38,12 @@ def read_geoparquet(
         gdf["time_step"] = int(time_step)
 
         dataframes.append(gdf)
+
+    # ! (important): Code at the call-site of this function assumes dataframes are sorted by time step. This
+    # would be a good place to assert this is indeed the case. You are implicitly assuming globbing returns paths in
+    # order of time step. Is this assumption always true?
+    # A comment about this postcondition would be good to add to the docstring. In general add information
+    # about what is being returned. The type can be deduced from the type hint, but how is it organized?
 
     return pd.concat(dataframes, ignore_index=True)
 
@@ -113,6 +126,34 @@ def get_neighboring_languages(
     return intersecting["language"].unique().tolist()
 
 
+def meh():
+
+    for idx in range(nr_cells):
+        array3[idx] = array1[idx] + array2[idx]
+
+    array1 = np.array()
+    array2 = np.array()
+    array3 = array1 + array2
+
+    # Dataframe voor agents die dezelfde taal spreken. Attributes:
+    # - intra_distance
+    # - ...
+
+    for language in old_languages:
+        step1()
+
+    for language in old_languages:
+        step2()
+
+    for language in old_languages:
+        step3()
+
+    ... = step1(...)
+    for language in old_languages:
+        ... step2(...)
+    ... = step3(...)
+
+
 def find_splitting_events(
     old_step: gpd.GeoDataFrame,
     new_step: gpd.GeoDataFrame,
@@ -129,6 +170,11 @@ def find_splitting_events(
     new_clusters = []
 
     # Loop through the languages of the previous time step
+    # !: This is likely slow (but profile to proof it is a bottleneck). Can it be removed by calling functions
+    # that operate on all agents at the same time? Think of turning each variable used in the for-loop's body
+    # into an array / column. First create a test for this function, then create an alternative implementation
+    # so you can verify that the new version behaves as the original. This also allows you to compare the
+    # differences in performance (e.g. using Python's timeit package).
     for language in old_languages:
         # Get IDs of agents speaking this language in previous time step
         lang_old_agent_ids = old_step[old_step["language"] == language]["id"]
@@ -211,7 +257,7 @@ def diversify(
     similar: bool = True,
     merge: bool = False,
 ) -> int:
-    """ "Cluster languages per time step based on clustering previous time step"""
+    """Cluster languages per time step based on clustering previous time step"""
     # Read the population data across all time_steps
     population = read_geoparquet(directory)
     # Initialize language column as -1 to keep track of unclassified
@@ -233,6 +279,8 @@ def diversify(
         # Keep track of the number of language shifts
         shift_counter = 0
 
+        # !: The block within the if-statement can be moved to before the for-loop. More efficient and
+        # clearer. Initialize the state of the model before simulating it forward through time.
         if time_step == 0:
             # First time_step: initialize the start languages
             clusters = initialize_languages(
@@ -244,6 +292,15 @@ def diversify(
             max_language_id = clusters.max()
             continue
 
+        # ~: Any previous step is an old step, but the previous step is a specific old step. Same for new vs
+        # next. You can also think of a current vs next step. Current is what you have, next is what you are
+        # busy with computing here. Previous would then be the one before current. You probably don't need to
+        # use the work previous often in that case.
+
+        # !: Your code relies on dataframes being ordered by time step. Otherwise the initial state of the
+        # model would not be initialized. Still, you *search* for the data frames corresponding to the time
+        # steps. Can't you just iterate forward over all data frames in population? Maybe population can be a
+        # list of data frames?
         new_step = population[population["time_step"] == time_step]  # .copy()
         old_step = population[population["time_step"] == (time_step - 1)]
 
@@ -259,6 +316,7 @@ def diversify(
             assigned_langs = find_assigned_languages(new_step)
 
         # Loop through the new clusters that have not been assigned yet
+        # !: Likely slow. See comment in find_assigned_languages().
         for agent_idx_list, label in new_clusters:
             if len(agent_idx_list) == 0:
                 logging.debug(f"No agents in cluster {label} at time step {time_step}, skipping.")
