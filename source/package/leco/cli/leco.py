@@ -9,27 +9,26 @@ import docopt
 import tomllib
 
 from ..cluster.all import classify_all
+
 from ..cluster.feed_forward import diversify
+
+# from ..cluster.per_step import diversify
 from ..model.simulation import simulate
 from ..plot.create import plot
 from ..sensitivity_analysis.morris import analyze
 from ..version import __version__ as version
 
 
-def run_leco(arguments: dict) -> None:
+def run_leco(arguments: dict, configuration: dict, configuration_file_path: Path) -> None:
     """Run the leco model with specified configuration."""
-    configuration_file_path = Path(arguments["<configuration_file>"])
-    configuration = load_configuration(configuration_file_path)
     directory = create_directory(arguments["<directory>"])
-
     # Store a copy of the configuration file for documentation and reproducibility
     shutil.copy2(configuration_file_path, directory / "configuration.toml")
-
     # Run the leco model
     simulate(configuration, directory)
 
 
-def cluster_languages(arguments: dict) -> None:
+def cluster_languages(arguments: dict, configuration: dict) -> None:
     """Run language classification on the leco model output for a specified method."""
     method = arguments["--method"]
     linkage = arguments["--linkage"]
@@ -44,27 +43,27 @@ def cluster_languages(arguments: dict) -> None:
 
     # Call the corresponding function with appropriate parameters
     if method == "feed_forward":
-        # Load radius to obtain interaction radius for feed-forward
-        radius = float(arguments["--radius"])
-        classification_by_method[method](directory, distance_threshold, linkage, radius)
+        classification_by_method[method](
+            directory,
+            distance_threshold,
+            linkage,
+            configuration["initialization"]["steps"],
+            configuration["interaction"]["radius"],
+        )
     else:
         classification_by_method[method](directory, distance_threshold, linkage)
 
 
-def plot_results(arguments: dict) -> None:
+def plot_results(arguments: dict, configuration: dict) -> None:
     """Create plots of the leco model output."""
-    configuration_file_path = Path(arguments["<configuration_file>"])
-    configuration = load_configuration(configuration_file_path)
     gpkg_file_path = Path(arguments["<gpkg_file>"])
     plot(gpkg_file_path, configuration)
 
 
-def sensitivity_analysis(arguments: dict) -> None:
+def sensitivity_analysis(arguments: dict, configuration: dict) -> None:
     """Run sensitivity analysis on the leco model."""
     method = arguments["--method"]
     distance_threshold = float(arguments["--distance"])
-    configuration_file_path = Path(arguments["<configuration_file>"])
-    configuration = load_configuration(configuration_file_path)
     directory = create_directory(arguments["<directory>"])
 
     analyze(method, distance_threshold, configuration, directory)
@@ -94,7 +93,7 @@ Usage:
     {command} run [--debug] <configuration_file> <directory>
     {command} cluster [--debug] [--method <all|feed_forward>]
         [--linkage <single|average|complete>] [--distance <distance_threshold>]
-        [--radius <radius>] <directory>
+        <configuration_file> <directory>
     {command} plot [--debug] <configuration_file> <gpkg_file>
     {command} sensitivity [--debug] [--method <all|feed_forward>]
         [--distance <distance_threshold>] <configuration_file> <directory>
@@ -112,12 +111,10 @@ Options:
                                         [default: average]
   --method <all|feed_forward>           Clustering method to use
                                         [default: feed_forward]
-  --radius <radius>                     Range of interaction radius required
-                                        for feed-forward method
 
 Typical workflow:
     {command} run configuration.toml results
-    {command} cluster --method all --distance 0.2 --radius 50.0 results
+    {command} cluster --method all --distance 0.2 configuration.toml results
     {command} plot configuration.toml population.gpkg
     {command} sensitivity configuration.toml sensitivity_results
 """
@@ -127,8 +124,11 @@ Typical workflow:
     if arguments["--debug"]:
         logging.basicConfig(level=logging.DEBUG)
 
+    configuration_file_path = Path(arguments["<configuration_file>"])
+    configuration = load_configuration(configuration_file_path)
+
     command_to_function = {
-        "run": run_leco,
+        "run": lambda args, config: run_leco(args, config, configuration_file_path),
         "cluster": cluster_languages,
         "plot": plot_results,
         "sensitivity": sensitivity_analysis,
@@ -136,4 +136,4 @@ Typical workflow:
 
     # Determine the subcommand and call the corresponding function
     active_command = next(cmd for cmd in command_to_function if arguments[cmd])
-    command_to_function[active_command](arguments)
+    command_to_function[active_command](arguments, configuration)

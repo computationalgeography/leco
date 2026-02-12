@@ -12,27 +12,14 @@ from scipy.spatial.distance import pdist
 from sklearn.cluster import AgglomerativeClustering
 
 
-def read_geoparquet(
-    directory: Path,
-    file_pattern: str = "*.geoparquet",
-) -> gpd.GeoDataFrame:
-    """Read in multiple geoparquet files with time_steps in filenames."""
-    # Find all matching files
-    file_paths = list(directory.glob(file_pattern))
+def read_population(directory: Path, step: int) -> pd.DataFrame:
+    """Function that reads in the population data at a certain time step."""
 
-    dataframes = []
+    file_name = f"output{step:03d}.geoparquet"
 
-    for file in file_paths:
-        gdf = gpd.read_parquet(file)
+    df = gpd.read_parquet(directory / file_name)
 
-        # Extract time_step from filename
-        filename = file.stem
-        time_step = filename.removeprefix("output")
-        gdf["time_step"] = int(time_step)
-
-        dataframes.append(gdf)
-
-    return pd.concat(dataframes, ignore_index=True)
+    return df
 
 
 def language_classification(
@@ -206,20 +193,15 @@ def diversify(
     directory: Path,
     dist_threshold: float,
     linkage: str,
+    time_steps: int,
     radius: float,
     sensitivity: bool = False,
     similar: bool = True,
     merge: bool = False,
 ) -> int:
     """ "Cluster languages per time step based on clustering previous time step"""
-    # Read the population data across all time_steps
-    population = read_geoparquet(directory)
-    # Initialize language column as -1 to keep track of unclassified
-    population["language"] = -1
-    # Keep track of the maximum language ID assigned
-    max_language_id = 0
 
-    # Create a dataframe to store data on the language shifts and merges
+    # Create a dataframe to store meta data on the language shifts and merges
     meta_data = pd.DataFrame(
         {
             "time_step": [0],
@@ -228,35 +210,38 @@ def diversify(
         }
     )
 
+    # Dataframe of the population at the initial time step
+    population_current = read_population(directory, 0)
+    # First time_step: initialize the start languages
+    clusters = initialize_languages(
+        population_current,
+        dist_threshold,
+        linkage,
+    )
+    population_current["language"] = clusters.astype(int)
+    max_language_id = clusters.max()
+
+    # Initiate the total population data frame across all time steps
+    population_total = population_current
+
     # Iterate over each time_step and check for splits
-    for time_step in tqdm(population["time_step"].unique()):
+    for time_step in tqdm(range(1, time_steps + 1), desc="Processing time steps"):
         # Keep track of the number of language shifts
         shift_counter = 0
 
-        if time_step == 0:
-            # First time_step: initialize the start languages
-            clusters = initialize_languages(
-                population[population["time_step"] == 0],
-                dist_threshold,
-                linkage,
-            )
-            population.loc[population["time_step"] == 0, "language"] = clusters.astype(int)
-            max_language_id = clusters.max()
-            continue
-
-        new_step = population[population["time_step"] == time_step]  # .copy()
-        old_step = population[population["time_step"] == (time_step - 1)]
+        population_previous = population_current
+        population_current = read_population(directory, time_step)
 
         # Determine the new clusters formed in this time step
         new_clusters, max_language_id = find_splitting_events(
-            old_step, new_step, dist_threshold, linkage, similar, max_language_id
+            population_previous, population_current, dist_threshold, linkage, similar, max_language_id
         )
 
         # Check if new clusters overlap in similarity with existing languages
         if merge is False:
             # Merge defines whether mixed languages can arise: a new language is formed out of two languages
             # if merge is set to false, only language shifts can take place to a previously assigned language
-            assigned_langs = find_assigned_languages(new_step)
+            assigned_langs = find_assigned_languages(population_current)
 
         # Loop through the new clusters that have not been assigned yet
         for agent_idx_list, label in new_clusters:
@@ -266,24 +251,26 @@ def diversify(
 
             if merge is True:
                 # New clusters can merge with newly assigned languages
-                assigned_langs = find_assigned_languages(new_step)
+                assigned_langs = find_assigned_languages(population_current)
 
             # Find neighboring languages within radius
             neighboring_languages = get_neighboring_languages(
-                new_step,
+                population_current,
                 agent_idx_list,
                 assigned_langs,
                 radius,
             )
 
             # Get the language profiles of agents in the new cluster
-            cluster_profiles = np.stack(new_step.loc[agent_idx_list, "language_profile"])
+            cluster_profiles = np.stack(population_current.loc[agent_idx_list, "language_profile"])
 
             # Check if any neighboring language clusters have a similarity below the distance threshold
             for neighbor_language in neighboring_languages:
                 # Get the language profiles of agents speaking the neighboring language
                 other_profiles = np.stack(
-                    new_step[new_step["language"] == neighbor_language]["language_profile"]
+                    population_current[population_current["language"] == neighbor_language][
+                        "language_profile"
+                    ]
                 )
 
                 # Combine all language profiles and check whether they form a coherent cluster
@@ -292,7 +279,7 @@ def diversify(
 
                 if coherence:
                     # Merge clusters by assigning the other language label
-                    new_step.loc[agent_idx_list, "language"] = neighbor_language
+                    population_current.loc[agent_idx_list, "language"] = neighbor_language
                     logging.debug(
                         f"Merge cluster {label} to existing language {neighbor_language} at step {time_step}"
                     )
@@ -300,26 +287,25 @@ def diversify(
                     break  # Exit after merging to avoid multiple merges
 
             # If agents in the new cluster have not been assigned a language yet, assign a new language ID
-            language_values = new_step.loc[agent_idx_list, "language"]
-            if (language_values.isna() | (language_values == -1)).all():
+            language_values = population_current.loc[agent_idx_list, "language"]
+            if language_values.isna().all():
                 logging.debug(f"Assigning new language {label} to cluster at time_step {time_step}")
-                new_step.loc[agent_idx_list, "language"] = label
+                population_current.loc[agent_idx_list, "language"] = label
 
         # Update population with new language assignments
-        population.loc[population["time_step"] == time_step, "language"] = new_step["language"].astype(int)
-
+        population_total = pd.concat([population_total, population_current], ignore_index=True)
         # Record meta data for this time step
         meta_data.loc[len(meta_data)] = [time_step, shift_counter]
 
     # Save output to a single gpkg file
-    population.to_file(directory / f"population_{linkage}.gpkg", driver="GPKG")
+    population_total.to_file(directory / f"population_{linkage}.gpkg", driver="GPKG")
 
     # Save meta data to csv file
     meta_data.to_csv(directory / "meta_data_cluster.csv", index=False)
 
     if sensitivity:
         # Compute number of unique languages at the last time step
-        last_step = int(population["time_step"].max())
-        languages_last = population.loc[population["time_step"] == last_step, "language"].unique()
+        last_step = int(population_total["time_step"].max())
+        languages_last = population_total.loc[population_total["time_step"] == last_step, "language"].unique()
         logging.info(f"Last time step: {last_step}; number of languages: {len(languages_last)}")
         return len(languages_last)
