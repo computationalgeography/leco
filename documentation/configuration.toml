@@ -30,7 +30,7 @@ mutation_rate = 0.01
 death_rate = 0.01
 birth_rate = 0.01
 logistic_growth = true
-multiplier = 10
+carrying_capacity = 10
 end_growth_time = 50
 
 [interaction]
