@@ -9,15 +9,15 @@ directory_pattern = "~/tmp/spawn/speed_{speed}/mutation_rate_{mutation_rate}/rad
 method = "ofat" # One factor at a time
 
 [sensitivity.run.initialization]
-seed.set = [51, 52, 53, 54, 55]
+seed.range = [51, 56, 1]
 
 [sensitivity.run.movement]
 speed.range = [10, 31, 2]
 
 [sensitivity.run.language]
-mutation_rate.set = [0.009, 0.01, 0.011]
+mutation_rate.range = [0.009, 0.012, 0.001]
 
 [sensitivity.run.interaction]
 radius.range = [15, 26, 5]
-diffusion_rate.set = [0.009, 0.01, 0.011]
-similarity_preference.set = [0.1, 0.2, 0.3]
+diffusion_rate.range = [0.009, 0.012, 0.001]
+similarity_preference.range = [0.1, 0.4, 0.1]

@@ -28,3 +28,11 @@ class PackageTest(unittest.TestCase):
 
         parameter = {"set": [1.0, 1.6, 0.1]}
         np.testing.assert_almost_equal(list(spawn.expand_set(parameter)), [0.1, 1.0, 1.6])
+
+    def test_as_string(self):
+
+        self.assertEqual(spawn.as_string(1), "1")
+        self.assertEqual(float("1"), float(1))
+
+        self.assertEqual(spawn.as_string(0.1), "0.1")
+        self.assertEqual(float("0.1"), float(0.1))

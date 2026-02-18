@@ -4,6 +4,7 @@ Code related to spawning multiple leco runs
 
 import concurrent
 import copy
+from decimal import Decimal, getcontext
 import os
 from pathlib import Path
 import tomllib
@@ -15,6 +16,9 @@ from ..model.simulation import simulate as model_simulate
 
 
 __all__ = ["default_max_nr_workers", "spawn"]
+
+
+getcontext().prec = 6
 
 
 def default_max_nr_workers() -> int:
@@ -48,6 +52,15 @@ def expand_set(parameter: dict) -> Generator[int | float, None, None]:
         yield value
 
 
+def as_string(value: int | float) -> str:
+    string = str(Decimal(value) * Decimal(1))
+
+    if string.find(".") != -1:
+        string = string.rstrip("0")
+
+    return string
+
+
 def expand_parameter(
     default_configuration: dict,
     parameter: list[str],
@@ -75,8 +88,8 @@ def expand_parameter(
 
     for value in parameter_values[list(value.keys())[0]](value):
         configuration = copy.deepcopy(default_configuration)
-        configuration[section_name][parameter_name] = value
-        directory_pathname = directory_pathname_pattern.replace(f"{{{parameter_name}}}", str(value))
+        configuration[section_name][parameter_name] = float(as_string(value))
+        directory_pathname = directory_pathname_pattern.replace(f"{{{parameter_name:}}}", as_string(value))
         directory_path = cwd / directory_pathname
 
         configurations.append((configuration, directory_path))
@@ -101,7 +114,9 @@ def substitute_default_values(
             if not (a_section == section and a_parameter == parameter):
                 # Replace {parameter} by its default value
                 default_value = default_configuration[a_section][a_parameter]
-                directory_pathname = directory_pathname.replace(f"{{{a_parameter}}}", str(default_value))
+                directory_pathname = directory_pathname.replace(
+                    f"{{{a_parameter}}}", as_string(default_value)
+                )
 
     return directory_pathname
 
@@ -150,6 +165,9 @@ def merge_configurations(
             )
 
     unique_configurations = set([(deepfreeze(tuple_[0]), tuple_[1]) for tuple_ in configurations])
+
+    # All paths should be unique
+    assert len(set(tuple_[1] for tuple_ in unique_configurations)) == len(unique_configurations)
 
     return unique_configurations
 
