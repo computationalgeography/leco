@@ -35,6 +35,6 @@ end_growth_time = 50
 
 [interaction]
 radius = 20
-partner_prob = 0.8
+partner_proportion = 0.8
 diffusion_rate = 0.01
 similarity_preference = 0.2

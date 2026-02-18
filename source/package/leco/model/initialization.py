@@ -43,7 +43,7 @@ def initialize_coordinates(
 
 def initialize_positions(
     space: list[float],
-    subset_area: dict[bool, list[float], list[float]],
+    subset_area: dict[str, bool | list[float]],
     nr_agents: int,
     rng: np.random.default_rng,
 ) -> tuple[np.ndarray[float], np.ndarray[float]]:
@@ -72,7 +72,7 @@ def initialize_language_profile(
 def initialize_population(
     nr_agents: int,
     space: list[float],
-    subset_area: dict[bool, list[float], list[float]],
+    subset_area: dict[str, bool | list[float]],
     nr_languages: int,
     nr_forms: int,
     nr_meanings: int,

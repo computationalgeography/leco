@@ -27,7 +27,7 @@ def effective_growth(r: float, carrying_capacity: int, nr_agents: int) -> float:
 
 
 def set_birth_rate(
-    pop_dynamics: dict[float, float, bool, int, int],
+    pop_dynamics: dict[str, float | bool | int],
     init_population: int,
     nr_agents: int,
     time_step: int,
@@ -53,7 +53,7 @@ def set_birth_rate(
 
 def population_dynamics(
     population: gpd.GeoDataFrame,
-    pop_dynamics: dict[float, float, bool, int, int],
+    pop_dynamics: dict[str, float | bool | int],
     init_population: int,
     time_step: int,
     max_id: int,

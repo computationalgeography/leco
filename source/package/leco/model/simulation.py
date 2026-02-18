@@ -14,7 +14,7 @@ from .population_dynamics import population_dynamics
 
 def mutate_profile(
     language_profiles: np.ndarray[int],
-    profile_attributes: dict[int, int, float],
+    profile_attributes: dict[str, int | float],
     rng: np.random.default_rng,
 ) -> list[np.ndarray[int], int]:
     """Mutate language profile of agents."""
@@ -117,8 +117,6 @@ def simulate(p: dict, directory: Path, sensitivity: bool = False) -> None | floa
             p["interaction"],
             p["language"]["meanings"],
             population.geometry,
-            barrier,
-            p["barrier"]["impermeability"],
             rng,
         )
 
