@@ -38,6 +38,10 @@ def language_classification(
     linkage: str,
 ) -> np.ndarray[int]:
     """Group language profiles into languages based on distance threshold using hierarchical clustering."""
+    # According to the docs, adding connectivity constraints makes the algorithm faster. Does adding them make
+    # sense?
+    # What about another clustering algorithm? K-means seems fast, but requires "distances between points" as
+    # metric. How does hamming relate to similarity between language profiles?
     clustering = AgglomerativeClustering(
         n_clusters=None,
         distance_threshold=dist_threshold,  # Threshold for clustering
@@ -67,14 +71,16 @@ def dynamic_clustering(
     return pd.concat(clustered_dfs, ignore_index=True)
 
 
+# What do the arguments mean? Forwarding to scikit docs is fine.
 def classify_all(
     directory: Path,
-    dist_threshold: float,
+    dist_threshold: float,  # dist is distance?
     linkage: str,
     sensitivity: bool = False,
     jump: int = 3,
 ) -> None | float:
     """Run the LECo model of language evolution."""
+    # The docstring seems wrong. No model is run here, right?
     # Read in the population data across all time steps
     population = read_geoparquet(directory)
 
@@ -82,6 +88,7 @@ def classify_all(
 
     linkages = ["complete", "average", "single"]
 
+    # This overwrites the argument passed in...
     for linkage in linkages:
         # Cluster the language profiles into languages based on the distance threshold
         population["language"] = language_classification(
