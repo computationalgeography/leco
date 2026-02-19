@@ -196,7 +196,6 @@ def simulate(arguments):
 
 
 def spawn(configuration_file_path: Path, max_nr_workers: int) -> None:
-
     # NOTE: We are assuming here that we need to *run* the model. Otherwise add subcommands (run,
     #       postprocess, ...).
     configurations_ = configurations(configuration_file_path)

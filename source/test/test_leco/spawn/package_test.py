@@ -14,7 +14,6 @@ class PackageTest(unittest.TestCase):
         self.assertGreater(spawn.default_max_nr_workers(), 0)
 
     def test_expand_range(self):
-
         parameter = {"range": [1, 5, 1]}
         self.assertEqual(list(spawn.expand_range(parameter)), [1, 2, 3, 4])
 
@@ -22,7 +21,6 @@ class PackageTest(unittest.TestCase):
         np.testing.assert_almost_equal(list(spawn.expand_range(parameter)), [1.0, 1.1, 1.2, 1.3, 1.4, 1.5])
 
     def test_expand_set(self):
-
         parameter = {"set": [1, 5, 1]}
         self.assertEqual(list(spawn.expand_set(parameter)), [1, 5])
 
@@ -30,7 +28,6 @@ class PackageTest(unittest.TestCase):
         np.testing.assert_almost_equal(list(spawn.expand_set(parameter)), [0.1, 1.0, 1.6])
 
     def test_as_string(self):
-
         self.assertEqual(spawn.as_string(1), "1")
         self.assertEqual(float("1"), float(1))
 
