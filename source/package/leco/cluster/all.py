@@ -80,18 +80,15 @@ def classify_all(
 
     population = population[population["time_step"] % jump == 0]
 
-    linkages = ["complete", "average", "single"]
+    # Cluster the language profiles into languages based on the distance threshold
+    population["language"] = language_classification(
+        np.stack(population["language_profile"]),
+        dist_threshold,
+        linkage,
+    )
 
-    for linkage in linkages:
-        # Cluster the language profiles into languages based on the distance threshold
-        population["language"] = language_classification(
-            np.stack(population["language_profile"]),
-            dist_threshold,
-            linkage,
-        )
-
-        # Save output to a single gpkg file
-        population.to_file(directory / f"population_all_{linkage}_jump{jump}.gpkg", driver="GPKG")
+    # Save output to a single gpkg file
+    population.to_file(directory / f"population_all_{linkage}_jump{jump}.gpkg", driver="GPKG")
 
     if sensitivity:
         # Compute number of unique languages at the last time step

@@ -101,8 +101,8 @@ def get_neighboring_languages(
 
 
 def find_splitting_events(
-    old_step: gpd.GeoDataFrame,
-    new_step: gpd.GeoDataFrame,
+    previous_step: gpd.GeoDataFrame,
+    current_step: gpd.GeoDataFrame,
     dist_threshold: float,
     linkage: str,
     similar: bool,
@@ -110,56 +110,59 @@ def find_splitting_events(
 ) -> tuple[dict, int]:
     """Determines the number of splits in previous language clusters for a certain time step"""
     # Clustering is based on the languages present in the previous time step
-    old_languages = old_step["language"].unique()
+    previous_languages = previous_step["language"].unique()
 
     # Collect the new languages formed in this time step
     new_clusters = []
 
     # Loop through the languages of the previous time step
-    for language in old_languages:
+    for language in previous_languages:
         # Get IDs of agents speaking this language in previous time step
-        lang_old_agent_ids = old_step[old_step["language"] == language]["id"]
+        lang_previous_agent_ids = previous_step[previous_step["language"] == language]["id"]
         # Get IDs of newborn agents that are born in the current time step
         # and whose parents spoke this language in previous time step
-        lang_newborn_agent_ids = new_step[
-            (~new_step["id"].isin(old_step["id"])) & (new_step["parent_id"].isin(lang_old_agent_ids))
+        lang_newborn_agent_ids = current_step[
+            (~current_step["id"].isin(previous_step["id"]))
+            & (current_step["parent_id"].isin(lang_previous_agent_ids))
         ]["id"]
-        # Combine old and newborn agent IDs
-        lang_agent_ids = pd.concat([lang_old_agent_ids, lang_newborn_agent_ids])
+        # Combine previous and newborn agent IDs
+        lang_agent_ids = pd.concat([lang_previous_agent_ids, lang_newborn_agent_ids])
 
         # Generate mask of previous speakers in the new time step
-        agent_mask = new_step["id"].isin(lang_agent_ids)
+        agent_mask = current_step["id"].isin(lang_agent_ids)
 
         if agent_mask.sum() == 0:
             # No agents remain from this language in the new time step: extinction
             continue
         if agent_mask.sum() == 1:
             # Only one agent remains, assign the language directly
-            new_step.loc[agent_mask, "language"] = language
+            current_step.loc[agent_mask, "language"] = language
             continue
 
         # Extract language profiles of the previous speakers
-        new_profiles = np.stack(new_step.loc[agent_mask, "language_profile"])
+        new_profiles = np.stack(current_step.loc[agent_mask, "language_profile"])
         # Check cluster coherence (max distance between any two profiles <= threshold)
         coherence = check_cluster_coherence(new_profiles, dist_threshold)
 
         if coherence is True:
             # All agents continue speaking the same language
-            new_step.loc[agent_mask, "language"] = language
+            current_step.loc[agent_mask, "language"] = language
         else:
             # Cluster the current language
             # This could still be one cluster based on linkage
             clusters = language_classification(new_profiles, dist_threshold, linkage)
             # Get the indices in the dataframe in new_step that correspond to these agents
-            agent_indices = new_step.index[agent_mask]
+            agent_indices = current_step.index[agent_mask]
             # Find the number of new languages created and the counts of each language
             unique_labels, counts = np.unique(clusters, return_counts=True)
 
             if similar is True:
                 # Find the cluster that is most similar to the original language to retain original ID
                 # Calculate the modal profile from the speakers of the original language
-                old_profiles = np.stack(old_step[old_step["id"].isin(lang_old_agent_ids)]["language_profile"])
-                original_mode = find_modal_profile(old_profiles)
+                previous_profiles = np.stack(
+                    previous_step[previous_step["id"].isin(lang_previous_agent_ids)]["language_profile"]
+                )
+                original_mode = find_modal_profile(previous_profiles)
 
                 cluster_modes = []
                 for label in unique_labels:
@@ -180,7 +183,7 @@ def find_splitting_events(
                 selected_idx = agent_indices[clusters == label]
                 if label == favorable_cluster:
                     # Favorable cluster gets the original language ID assigned
-                    new_step.loc[selected_idx, "language"] = int(language)
+                    current_step.loc[selected_idx, "language"] = int(language)
                 else:
                     # Other clusters get temporary language IDs
                     max_language_id += 1
@@ -198,7 +201,7 @@ def diversify(
     sensitivity: bool = False,
     similar: bool = True,
     merge: bool = False,
-) -> int:
+) -> None | int:
     """ "Cluster languages per time step based on clustering previous time step"""
 
     # Create a dataframe to store meta data on the language shifts and merges
