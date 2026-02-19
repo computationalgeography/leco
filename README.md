@@ -61,7 +61,7 @@ The simulation requires a TOML configuration file to set up the parameters to ru
 ```toml
 [initialization]
 agents = 5
-steps = 100
+steps = 20
 seed = 51
 nr_start_languages = 5
 
@@ -69,7 +69,7 @@ nr_start_languages = 5
 shape = [1000, 1000]
 
 [initialization_subset_area]
-present = true
+present = false
 x_extent = [480,520]
 y_extent = [930,970]
 
@@ -79,25 +79,26 @@ x_extent = [250, 450]
 y_extent = [0, 1000]
 impermeability = 0.6
 
-[population_dynamics]
-death_rate = 0.01
-birth_rate = 0.01
-logistic_growth = true
-multiplier = 50
-end_growth_time = 100
-
 [movement]
 speed = 20
 
 [language]
 meanings = 100
 forms = 120
-mutation_rate = 0.001
+mutation_rate = 0.01
+
+[population_dynamics]
+death_rate = 0.01
+birth_rate = 0.01
+logistic_growth = true
+carrying_capacity = 10
+end_growth_time = 50
 
 [interaction]
 radius = 20
-partner_prob = 0.8
+partner_proportion = 0.8
 diffusion_rate = 0.01
+similarity_preference = 0.2
 ```
 
 Different scenario's can be chosen at initialization of the model. When init_subset_area is set to false, initial positions of the agents are randomly distributed across the entire space. Otherwise initial positions are confined to the subset area, for which the x and y ranges can be specified with init_x and init_y. A user can additionally specify the number of initial languages and agents. In case this value is not the same, the start languages are evenly distributed across the initial agents.

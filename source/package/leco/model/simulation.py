@@ -23,9 +23,8 @@ def mutate_profile(
 
     # Generate mutation masks for all agents at once
     mutation_prob = rng.random((nr_agents, nr_meanings))
-    # Calculate mutation rate per feature
-    mutation_rate_feature = profile_attributes["mutation_rate"] / nr_meanings
-    mutation_mask = mutation_prob < mutation_rate_feature
+
+    mutation_mask = mutation_prob < profile_attributes["mutation_rate"]
 
     # Generate the new forms
     mutated_forms = rng.integers(

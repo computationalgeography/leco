@@ -24,7 +24,7 @@ speed = 20
 [language]
 meanings = 100
 forms = 120
-mutation_rate = 0.01
+mutation_rate = 0.001
 
 [population_dynamics]
 death_rate = 0.01

@@ -1,6 +1,7 @@
 """Functions for agent interaction and linguistic diffusion."""
 
 import geopandas as gpd
+import logging
 import numpy as np
 from scipy.spatial import KDTree
 
@@ -23,28 +24,44 @@ def select_interacting_partners(
     partner_proportion: float,
     similarity_preference: float,
     rng: np.random.default_rng,
-) -> np.ndarray[int]:  # or boolean
-    """Select proportion / fixed number of neighbors an agent interacts with."""
+) -> np.ndarray[int]:
+    """Select proportion / fixed number of neighbors an agent interacts with.
+    Neighbor weights are calculated following under positive similarity preference s:
+        weights = (1 - s) * uniform_weights + s * similarity_weights
+    Or a negative similarity preference s:
+        weights = (1 + s) * uniform_weights - s * dissimilarity_weights
+    """
 
     number_neighbors = len(neighbors)
     # Select partner_proportion interaction partners, or the number of neighbors when this value is lower
     number_interaction_partners = min(number_neighbors, int(number_neighbors * partner_proportion))
 
+    # Calculate all pairwise similarities between active agent and it's neighbors
     similarities = np.sum(neighbors_profiles == agent_profile, axis=1) / len(agent_profile)
 
     uniform_weights = np.ones(number_neighbors) / number_neighbors
 
-    similarity_sum = similarities.sum()
-    # Avoid dividing by zero
-    similarity_weights = similarities / similarity_sum if similarity_sum > 0 else uniform_weights
-
-    if similarity_preference >= 0:
+    # Select weighting scheme based on similarity preference in [-1.0, 1.0]
+    if 0.0 <= similarity_preference <= 1.0:
+        # A positive preference normalizes the similarities
+        similarity_sum = similarities.sum()
+        # Avoid dividing by zero
+        similarity_weights = similarities / similarity_sum if similarity_sum > 0 else uniform_weights
         weights = (1 - similarity_preference) * uniform_weights + similarity_preference * similarity_weights
-    else:
-        weights = (1 + similarity_preference) * uniform_weights + -similarity_preference * (
-            1 - similarity_weights
+    elif -1.0 <= similarity_preference < 0.0:
+        # A negative preferences normalizes the dissimilarities
+        dissimilarity_sum = (1 - similarities).sum()
+        # Avoid dividing by zero
+        dissimilarity_weights = (
+            (1 - similarities) / dissimilarity_sum if dissimilarity_sum > 0 else uniform_weights
         )
+        weights = (1 + similarity_preference) * uniform_weights + (
+            -similarity_preference
+        ) * dissimilarity_weights
+    else:
+        logging.error("Error: similarity preference should be within the range of [-1.0, 1.0]")
 
+    # Avoid weights of zero, so rng.choice always select number_interaction_partners
     epsilon = 1e-8
     weights = weights + epsilon
     weights /= weights.sum()
@@ -106,8 +123,8 @@ def interact(
         )
 
         for i, partner_idx in enumerate(interaction_partners):
-            # Determine which features from partner's language profile will be diffused
-            # Partner corresponds to the ith array from diffusion_probabilities
+            # Determine which features from the partner's language profile will be diffused
+            # The partner corresponds to the ith array from diffusion_probabilities
             diffusion_mask = diffusion_probabilities[i] < interact_attributes["diffusion_rate"]
 
             new_profiles[agent_idx] = np.where(
