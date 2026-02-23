@@ -1,0 +1,23 @@
+# Regular Leco model configuration file to tweak
+configuration_file = "configuration.toml"
+
+# Template to use for generating output directory pathnames. All variable parameters should met mentioned.
+directory_pattern = "~/tmp/spawn/speed_{speed}/mutation_rate_{mutation_rate}/radius_{radius}/diffusion_rate_{diffusion_rate}/similarity_preference_{similarity_preference}/seed_{seed}"
+
+[sensitivity.run]
+# Section with settings for performing a sensitivity analysis
+method = "ofat" # One factor at a time
+
+[sensitivity.run.initialization]
+seed.range = [51, 56, 1]
+
+[sensitivity.run.movement]
+speed.range = [10, 31, 2]
+
+[sensitivity.run.language]
+mutation_rate.range = [0.009, 0.012, 0.001]
+
+[sensitivity.run.interaction]
+radius.range = [15, 26, 5]
+diffusion_rate.range = [0.009, 0.012, 0.001]
+similarity_preference.range = [0.1, 0.4, 0.1]

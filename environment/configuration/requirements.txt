@@ -1,6 +1,7 @@
 build
 datetime
 docopt
+frozendict
 geopandas
 matplotlib
 networkx
