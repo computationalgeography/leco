@@ -1,17 +1,16 @@
 """Functions to create summary plots of leco model output."""
 
+import re
 from collections import defaultdict
 from pathlib import Path
 
 import geopandas as gpd
-import pandas as pd
 import numpy as np
-import re
+import pandas as pd
 
 
 def parse_filename(filepath: Path, parameter_name: str, seed: bool = False) -> tuple[int, str]:
     """Extract seed or run number from filename like 'seed_42_run_0001'."""
-
     if seed:
         match = re.search(r"seed_(\d+)", str(filepath))
     else:
@@ -29,8 +28,8 @@ def organize_by_run(
     metadata_files: list[pd.DataFrame],
     parameter_name: str,
 ) -> dict:
-    """
-    Organize GeoDataFrames by run and seed for one scenario.
+    """Organize GeoDataFrames by run and seed for one scenario.
+
     Returns nested dict: {run: {seed: gdf}}
     """
     scenario_dict = defaultdict(dict)
@@ -48,8 +47,8 @@ def organize_languages(
     metadata_files: list[pd.DataFrame],
     parameter_name: str,
 ) -> dict:
-    """
-    Organize GeoDataFrames by run and seed for one scenario.
+    """Organize GeoDataFrames by run and seed for one scenario.
+
     Returns nested dict: {run: {seed: gdf}}
     """
     scenario_dict = defaultdict(dict)
@@ -66,7 +65,6 @@ def write_data(
     step_to_years: int,
 ) -> pd.DataFrame:
     """Calculates only language number"""
-
     # Get the first actual dataframe to extract time steps
     first_run = next(iter(organized_data.values()))
     first_seed = next(iter(first_run.values()))
@@ -112,7 +110,7 @@ def write_data(
                         "speaker_mean": np.mean(nonzero_speakers),
                         "speaker_min": np.min(nonzero_speakers),
                         "speaker_max": np.max(nonzero_speakers),
-                    }
+                    },
                 )
 
     return pd.DataFrame(results)
@@ -125,7 +123,7 @@ def extract_files(input_paths: list[Path], type_file: str) -> list[gpd.GeoDataFr
             population = gpd.read_file(input)
             # Convert language_profile from string to numpy array
             population["language_profile"] = population["language_profile"].apply(
-                lambda x: np.fromstring(str(x).strip("[]"), sep=" ", dtype=int)
+                lambda x: np.fromstring(str(x).strip("[]"), sep=" ", dtype=int),
             )
             runs.append(population)
         if type_file == "metadata":
@@ -144,7 +142,7 @@ def extract_files_matched(gpkg_paths: list[Path]) -> tuple[list[gpd.GeoDataFrame
         # Read gpkg file
         population = gpd.read_file(gpkg_path)
         population["language_profile"] = population["language_profile"].apply(
-            lambda x: np.fromstring(str(x).strip("[]"), sep=" ", dtype=int)
+            lambda x: np.fromstring(str(x).strip("[]"), sep=" ", dtype=int),
         )
         populations.append(population)
 
@@ -171,7 +169,7 @@ def plot_combined(parameter_name: str) -> None:
     populations, metadata = extract_files_matched(gpkg_file_paths)
 
     if len(metadata) != len(populations):
-        print("BE CARERFUL, FILES NOT RECOGNIZED!")
+        print("BE CAREFUL, FILES NOT RECOGNIZED!")
 
     output_path = path.parent
     organized_data = organize_by_run(
@@ -180,7 +178,7 @@ def plot_combined(parameter_name: str) -> None:
         metadata,
         parameter_name,
     )
-    # organized data is dictionary ordened by seed, then run and holds gpkg dataframe and meta data dataframe
+    # organized data is dictionary ordered by seed, then run and holds gpkg dataframe and meta data dataframe
 
     # Then calculate statistics
     step_to_years = 20

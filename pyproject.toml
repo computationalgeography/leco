@@ -30,6 +30,14 @@ packages = ["source/package/leco"]
 line-length = 110
 select = ["E", "F"]
 fix = true
+exclude = [
+    ### sensitivity_analysis files are under development and might nog be needed
+    "source/package/leco/sensitivity_analysis",
+    ## Kor's scripts
+    "source/package/leco/spawn",
+    ## Unclear problem
+    "documentation/",
+]
 
 [tool.ruff.lint]
 select = ["ALL"]

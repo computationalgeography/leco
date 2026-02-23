@@ -1,33 +1,35 @@
 """Functions to create summary plots of leco model output."""
 
+import re
+import logging
 from collections import defaultdict
 from pathlib import Path
-from tqdm import tqdm
 
 import geopandas as gpd
-import pandas as pd
 import numpy as np
-import re
+import pandas as pd
+from tqdm import tqdm
+
+logger = logging.getLogger(__name__)
 
 
 def parse_filename(filepath: Path) -> tuple[int, int]:
     """Extract seed and run number from filename like 'seed_42_run_0001'."""
-
-    # match = re.search(r"seed_(\d+)_run_(\d+)", str(filepath))
     parameter_name = "speed"
     match = re.search(rf"seed_(\d+)_{parameter_name}_(\d+(?:\.\d+)?)", str(filepath))
 
     if match:
         return int(match.group(1)), int(match.group(2))
-    raise ValueError(f"Could not parse seed and run from {filepath}")
+
+    return logger.error("Could not parse seed and run from %s", filepath)
 
 
 def organize_by_scenario_and_run(
     populations: list[gpd.GeoDataFrame],
     filepaths: list[Path],
 ) -> dict:
-    """
-    Organize GeoDataFrames by run and seed for one scenario.
+    """Organize GeoDataFrames by run and seed for one scenario.
+
     Returns nested dict: {run: {seed: gdf}}
     """
     scenario_dict = defaultdict(dict)
@@ -43,11 +45,10 @@ def mean_std_languages_per_run(
     gdfs: list[gpd.GeoDataFrame],
     step_to_years: int,
 ) -> tuple[np.ndarray]:
-    """
-    gdfs: all seeds for ONE
+    """gdfs: all seeds for one.
+
     Calculate the number of born, extinct and total number of languages per time step
     """
-
     born_languages_per_seed = []
     extinct_languages_per_seed = []
     language_counts_per_seed = []
@@ -131,7 +132,6 @@ def mean_std_languages_per_run(
 ##### Variance
 def calculate_heterozygosity(language_profiles: np.array) -> float:
     """Calculates the heterozygosity for a language"""
-
     n_individuals = language_profiles.shape[0]
 
     # Count occurrences of each value at each position
@@ -159,8 +159,7 @@ def calculate_heterozygosity(language_profiles: np.array) -> float:
 
 
 def within_variance(population: gpd.GeoDataFrame) -> dict[int, float]:
-    """Function that calculates the variance within languages over time."""
-
+    """Calculate the variance within languages over time."""
     languages = population.groupby("language")["language_profile"]
     zygosity = dict[int, float]()
 
@@ -173,7 +172,6 @@ def within_variance(population: gpd.GeoDataFrame) -> dict[int, float]:
 
 def compute_fixation_index_per_step(population: gpd.GeoDataFrame) -> dict[str, float]:
     """Function that calculates the fixation index Fst for the total population."""
-
     heterozygosity_total = calculate_heterozygosity(np.stack(population["language_profile"]))
 
     # If there's no variation at all, Fst is undefined
@@ -218,8 +216,8 @@ def multiple_runs_fixation_index(
     populations: list[gpd.GeoDataFrame],
 ) -> dict[str, tuple[np.ndarray, np.ndarray]]:
     """Function that calculates the mean and standard deviation for fixation_index, heterozygosity_total,
-    and mean_heterozygosity_within across multiple populations per timestep."""
-
+    and mean_heterozygosity_within across multiple populations per timestep.
+    """
     metrics = ["fixation_index", "heterozygosity_total", "mean_heterozygosity_within"]
     metrics_per_population = {metric: [] for metric in metrics}
 
@@ -248,8 +246,7 @@ def calculate_stats_all_scenarios(
     step_to_years: int,
     seed_number: int,
 ) -> pd.DataFrame:
-    """
-    Calculate mean and std for each scenario and run.
+    """Calculate mean and std for each scenario and run.
 
     organized_data: {scenario_name: {run: {seed: gdf}}}
     Returns a DataFrame with columns: scenario, run, time_step, years, mean_languages, std_languages
@@ -344,7 +341,7 @@ def calculate_stats_all_scenarios(
                         "std_heterozygosity_total": s_ht,
                         "mean_heterozygosity_within": m_hs,
                         "std_heterozygosity_within": s_hs,
-                    }
+                    },
                 )
 
     return pd.DataFrame(results)
@@ -366,7 +363,7 @@ def extract_files(input_paths: list[Path]) -> list[gpd.GeoDataFrame]:
         population = gpd.read_file(input)
         # Convert language_profile from string to numpy array
         population["language_profile"] = population["language_profile"].apply(
-            lambda x: np.fromstring(str(x).strip("[]"), sep=" ", dtype=int)
+            lambda x: np.fromstring(str(x).strip("[]"), sep=" ", dtype=int),
         )
         runs.append(population)
 
@@ -374,8 +371,7 @@ def extract_files(input_paths: list[Path]) -> list[gpd.GeoDataFrame]:
 
 
 def from_path_to_gdf(path: Path, name: str) -> list[gpd.GeoDataFrame]:
-    """Returns gdf from list of paths"""
-
+    """Return gdf from list of paths."""
     gpkg = list(path.rglob("*.gpkg"))
     print(type(gpkg))
     return gpkg, extract_files(gpkg)
@@ -431,7 +427,7 @@ def plot_combined(seed_number: int = 5) -> None:
         "few": organize_by_scenario_and_run(
             populations,
             gpkg,
-        )
+        ),
     }
 
     # Then calculate statistics

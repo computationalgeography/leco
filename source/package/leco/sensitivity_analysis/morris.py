@@ -1,15 +1,16 @@
-"""Script to perform a Morris sensitivity analysis"""
+"""Script to perform a Morris sensitivity analysis."""
 
-from pathlib import Path
-from SALib.sample import morris as morris_sample
-from SALib.analyze import morris as morris_analyze
-import logging
-import numpy as np
 import json
+import logging
+from pathlib import Path
 
-from ..model.simulation import simulate
+import numpy as np
+from SALib.analyze import morris as morris_analyze
+from SALib.sample import morris as morris_sample
+
 from ..cluster.all import classify_all
 from ..cluster.feed_forward import diversify
+from ..model.simulation import simulate
 
 
 def modify_config(
@@ -19,7 +20,6 @@ def modify_config(
     seed: int,
 ) -> dict:
     """Modify the configuration parameters to the sensitivity run."""
-
     modified_config = configuration.copy()
 
     param_mapping = {
@@ -52,7 +52,6 @@ def model(
     linkage: str,
 ) -> tuple[float, float]:
     """Run the leco model."""
-
     # Run simulation
     diffusion_proportion = simulate(configuration, directory_path, sensitivity=True)
 
@@ -92,7 +91,6 @@ def run_model(
     linkage: str,
 ) -> tuple[float, float]:
     """Run the leco model with given parameters and return a scalar output for sensitivity analysis."""
-
     # Create a unique output directory for this run
     # run_directory_path = directory_path / f"run_{run_index:04d}"
     run_directory_path = directory_path / f"{sens_name}_{params[param_index]}"
@@ -121,8 +119,8 @@ def run_model(
         return float(diffusion_prob), float(language_number)
 
     except Exception as e:
-        logging.error(f"Model run failed with parameters: {sens_name}")
-        logging.error(f"Error: {str(e)}")
+        logging.exception(f"Model run failed with parameters: {sens_name}")
+        logging.exception(f"Error: {e!s}")
         raise
 
 
@@ -213,13 +211,18 @@ def run_per_seed(
 
 
 def create_morris_parameters(
-    sensitivity_problem: dict, parameter_names: list[str], directory_path: Path, r, num_levels
+    sensitivity_problem: dict,
+    parameter_names: list[str],
+    directory_path: Path,
+    r,
+    num_levels,
 ) -> np.ndarray[float]:
     """Generate parameter combinations following Morris global sensitivity approach"""
-
     # Generate Morris sample with r trajectories
     param_values = morris_sample.sample(
-        sensitivity_problem, N=r, num_levels=num_levels
+        sensitivity_problem,
+        N=r,
+        num_levels=num_levels,
     )  # , grid_jump=grid_jump)
     type(param_values)
     np.savetxt(
@@ -239,7 +242,6 @@ def analyze(
     directory_path: Path,
 ) -> None:
     """Run sensitivity analysis on the leco model."""
-
     morris = False
     # Morris sampling parameters
     r = 20
@@ -270,7 +272,11 @@ def analyze(
 
     if morris:
         parameter_values = create_morris_parameters(
-            sensitivity_problem, parameter_names, directory_path, r, num_levels
+            sensitivity_problem,
+            parameter_names,
+            directory_path,
+            r,
+            num_levels,
         )
     else:
         # parameter_values = [50.0, 0.1, 50.0, 0.1, 0.3]
