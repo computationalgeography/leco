@@ -1,6 +1,7 @@
 """Create a 3D interactive plot of the leco model output."""
 
 from pathlib import Path
+
 import geopandas as gpd
 import matplotlib as mpl
 import matplotlib.pyplot as plt

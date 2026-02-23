@@ -2,6 +2,6 @@
 
 from .all import classify_all
 from .feed_forward import diversify
-from .version import __version__
+from .per_step import diversify_stepwise
 
-__all__ = ["__version__", "classify_all", "diversify"]
+__all__ = ["classify_all", "diversify", "diversify_stepwise"]

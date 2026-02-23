@@ -9,10 +9,8 @@ import docopt
 import tomllib
 
 from ..cluster.all import classify_all
-
 from ..cluster.feed_forward import diversify
-
-# from ..cluster.per_step import diversify
+from ..cluster.per_step import diversify_stepwise
 from ..model.simulation import simulate
 from ..plot.create import plot
 from ..sensitivity_analysis.morris import analyze
@@ -39,6 +37,7 @@ def cluster_languages(arguments: dict, configuration: dict) -> None:
     classification_by_method = {
         "all": classify_all,  # 3D clustering over all time_steps
         "feed_forward": diversify,  # Feed-forward diversification-based clustering
+        "step": diversify_stepwise,  # Cluster per time step independently
     }
 
     # Call the corresponding function with appropriate parameters
@@ -91,7 +90,7 @@ Run leco model
 
 Usage:
     {command} run [--debug] <configuration_file> <directory>
-    {command} cluster [--debug] [--method <all|feed_forward>]
+    {command} cluster [--debug] [--method <all|feed_forward|step>]
         [--linkage <single|average|complete>] [--distance <distance_threshold>]
         <configuration_file> <directory>
     {command} plot [--debug] <configuration_file> <gpkg_file>
@@ -109,7 +108,7 @@ Options:
   <directory>                           Directory to store/read the output
   --linkage <single|average|complete>   Clustering linkage to use
                                         [default: average]
-  --method <all|feed_forward>           Clustering method to use
+  --method <all|feed_forward|step>      Clustering method to use
                                         [default: feed_forward]
 
 Typical workflow:

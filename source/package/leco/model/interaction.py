@@ -1,9 +1,12 @@
 """Functions for agent interaction and linguistic diffusion."""
 
-import geopandas as gpd
 import logging
+
+import geopandas as gpd
 import numpy as np
 from scipy.spatial import KDTree
+
+logger = logging.getLogger(__name__)
 
 
 def nearest_neighbors(positions: np.ndarray[float], radius: float) -> list[np.ndarray[int]]:
@@ -26,12 +29,12 @@ def select_interacting_partners(
     rng: np.random.default_rng,
 ) -> np.ndarray[int]:
     """Select proportion / fixed number of neighbors an agent interacts with.
+
     Neighbor weights are calculated following under positive similarity preference s:
         weights = (1 - s) * uniform_weights + s * similarity_weights
     Or a negative similarity preference s:
         weights = (1 + s) * uniform_weights - s * dissimilarity_weights
     """
-
     number_neighbors = len(neighbors)
     # Select partner_proportion interaction partners, or the number of neighbors when this value is lower
     number_interaction_partners = min(number_neighbors, int(number_neighbors * partner_proportion))
@@ -59,21 +62,20 @@ def select_interacting_partners(
             -similarity_preference
         ) * dissimilarity_weights
     else:
-        logging.error("Error: similarity preference should be within the range of [-1.0, 1.0]")
+        logger.error("Error: similarity preference should be within the range of [-1.0, 1.0]")
 
     # Avoid weights of zero, so rng.choice always select number_interaction_partners
     epsilon = 1e-8
     weights = weights + epsilon
     weights /= weights.sum()
 
-    interaction_partners = rng.choice(
+    # Return the chosen interaction partners
+    return rng.choice(
         number_neighbors,
         size=number_interaction_partners,
         p=weights,
         replace=False,
     )
-
-    return interaction_partners
 
 
 def interact(

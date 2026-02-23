@@ -1,6 +1,6 @@
 import unittest
-import numpy as np
 
+import numpy as np
 from leco.model.interaction import nearest_neighbors
 
 

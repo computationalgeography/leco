@@ -1,10 +1,10 @@
 """Runs the leco model."""
 
 from pathlib import Path
-from tqdm import tqdm
 
-import pandas as pd
 import numpy as np
+import pandas as pd
+from tqdm import tqdm
 
 from .initialization import initialize_barrier, initialize_population
 from .interaction import interact
@@ -73,7 +73,7 @@ def simulate(p: dict, directory: Path, sensitivity: bool = False) -> None | floa
             "time_step": [0],
             "internal_change": [0],
             "external_change": [0],
-        }
+        },
     )
 
     # Write initialization dataframe to a .geoparquet file
@@ -140,6 +140,7 @@ def simulate(p: dict, directory: Path, sensitivity: bool = False) -> None | floa
         # Exclude steps with no changes at all
         mask = total_changes_per_step != 0
         proportion_per_step = (md["external_change"] / total_changes_per_step)[mask]
-        average_proportion = proportion_per_step.mean()
 
-        return average_proportion
+        return proportion_per_step.mean()
+
+    return None

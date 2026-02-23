@@ -1,12 +1,14 @@
 """Cluster language profiles into languages in 3d across time."""
 
-from pathlib import Path
 import logging
+from pathlib import Path
 
 import geopandas as gpd
 import numpy as np
 import pandas as pd
 from sklearn.cluster import AgglomerativeClustering
+
+logger = logging.getLogger(__name__)
 
 
 def read_geoparquet(
@@ -94,5 +96,7 @@ def classify_all(
         # Compute number of unique languages at the last time step
         last_step = int(population["time_step"].max())
         languages_last = population.loc[population["time_step"] == last_step, "language"].unique()
-        logging.info(f"Last time step: {last_step}; number of languages: {len(languages_last)}")
+        logger.info("Number of languages at last time step: %s", len(languages_last))
         return len(languages_last)
+
+    return None

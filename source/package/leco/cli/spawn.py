@@ -1,14 +1,12 @@
-"""
-Command line interface for the script to spawn concurrent leco model runs
-"""
+"""Command line interface for the script to spawn concurrent leco model runs."""
 
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import docopt
 
-from ..version import __version__ as version
 from .. import spawn
+from ..version import __version__ as version
 
 
 def main() -> None:

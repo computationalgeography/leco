@@ -101,7 +101,7 @@ def population_dynamics(
 
         # Create offspring by taking parent data and updating IDs
         offspring = population.iloc[birth_indices].copy()
-        offspring["parent_id"] = population.iloc[birth_indices]["id"].values
+        offspring["parent_id"] = population.iloc[birth_indices]["id"].to_numpy()
         offspring["id"] = new_ids
 
         # Combine survivors with offspring

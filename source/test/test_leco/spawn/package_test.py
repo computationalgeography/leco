@@ -1,7 +1,6 @@
 import unittest
 
 import numpy as np
-
 import leco.spawn as spawn
 
 
@@ -32,4 +31,4 @@ class PackageTest(unittest.TestCase):
         self.assertEqual(float("1"), float(1))
 
         self.assertEqual(spawn.as_string(0.1), "0.1")
-        self.assertEqual(float("0.1"), float(0.1))
+        self.assertEqual(float("0.1"), 0.1)

@@ -1,25 +1,26 @@
-"""Feed-forward clustering of the language profiles into languages
-following evolutionary diversification processes."""
+"""Feed-forward clustering of the language profiles into languages.
 
+Classification based on evolutionary diversification processes.
+"""
+
+import logging
 from pathlib import Path
-from tqdm import tqdm
 
 import geopandas as gpd
-import logging
 import numpy as np
 import pandas as pd
 from scipy.spatial.distance import pdist
 from sklearn.cluster import AgglomerativeClustering
+from tqdm import tqdm
+
+logger = logging.getLogger(__name__)
 
 
 def read_population(directory: Path, step: int) -> pd.DataFrame:
-    """Function that reads in the population data at a certain time step."""
-
+    """Read in the population data at a certain time step."""
     file_name = f"output{step:03d}.geoparquet"
 
-    df = gpd.read_parquet(directory / file_name)
-
-    return df
+    return gpd.read_parquet(directory / file_name)
 
 
 def language_classification(
@@ -38,7 +39,7 @@ def language_classification(
     return clustering.fit_predict(language_profiles)
 
 
-def check_cluster_coherence(language_profiles: np.ndarray[int], dist_threshold) -> bool:
+def check_cluster_coherence(language_profiles: np.ndarray[int], dist_threshold: float) -> bool:
     """Check if maximum distance between language profiles in a cluster is within the distance threshold."""
     distances = pdist(language_profiles, metric="hamming")
     return np.all(distances <= dist_threshold)
@@ -53,28 +54,26 @@ def initialize_languages(
     language_profiles = np.stack(start_population["language_profile"])
     if len(start_population) == 1:
         return np.array([0])
-    clusters = language_classification(language_profiles, dist_threshold, linkage)
 
-    return clusters
+    return language_classification(language_profiles, dist_threshold, linkage)
 
 
 def find_modal_profile(language_profiles: np.ndarray[int]) -> np.ndarray[int]:
     """Calculate the mode (most common value) for each categorical variable."""
     # For each column/feature, find the most common value
     return np.array(
-        [np.bincount(language_profiles[:, i]).argmax() for i in range(language_profiles.shape[1])]
+        [np.bincount(language_profiles[:, i]).argmax() for i in range(language_profiles.shape[1])],
     )
 
 
 def find_assigned_languages(new_step: gpd.GeoDataFrame) -> dict[int]:
     """Return list of currently assigned languages in the new step."""
-    assigned_langs = (
+    return (
         new_step.loc[new_step["language"].notna() & (new_step["language"] != -1), "language"]
         .astype(int)
         .unique()
         .tolist()
     )
-    return assigned_langs
 
 
 def get_neighboring_languages(
@@ -84,7 +83,6 @@ def get_neighboring_languages(
     radius: float,
 ) -> list[int]:
     """Find languages that are spoken within a certain radius around the language of interest."""
-
     # Create buffer around all agents speaking the language with a specified radius
     cluster_buffer = new_step.loc[agent_idx_list].geometry.unary_union.buffer(radius)
 
@@ -108,7 +106,7 @@ def find_splitting_events(
     similar: bool,
     max_language_id: int,
 ) -> tuple[dict, int]:
-    """Determines the number of splits in previous language clusters for a certain time step"""
+    """Determine the number of splits in previous language clusters for a certain time step."""
     # Clustering is based on the languages present in the previous time step
     previous_languages = previous_step["language"].unique()
 
@@ -160,7 +158,7 @@ def find_splitting_events(
                 # Find the cluster that is most similar to the original language to retain original ID
                 # Calculate the modal profile from the speakers of the original language
                 previous_profiles = np.stack(
-                    previous_step[previous_step["id"].isin(lang_previous_agent_ids)]["language_profile"]
+                    previous_step[previous_step["id"].isin(lang_previous_agent_ids)]["language_profile"],
                 )
                 original_mode = find_modal_profile(previous_profiles)
 
@@ -202,15 +200,13 @@ def diversify(
     similar: bool = True,
     merge: bool = False,
 ) -> None | int:
-    """ "Cluster languages per time step based on clustering previous time step"""
-
+    """Cluster languages per time step based on clustering previous time step."""
     # Create a dataframe to store meta data on the language shifts and merges
     meta_data = pd.DataFrame(
         {
             "time_step": [0],
             "shifts": [0],
-            # "merges": [0], # For a later moment to potentially include merges
-        }
+        },
     )
 
     # Dataframe of the population at the initial time step
@@ -237,7 +233,12 @@ def diversify(
 
         # Determine the new clusters formed in this time step
         new_clusters, max_language_id = find_splitting_events(
-            population_previous, population_current, dist_threshold, linkage, similar, max_language_id
+            population_previous,
+            population_current,
+            dist_threshold,
+            linkage,
+            similar,
+            max_language_id,
         )
 
         # Check if new clusters overlap in similarity with existing languages
@@ -249,7 +250,11 @@ def diversify(
         # Loop through the new clusters that have not been assigned yet
         for agent_idx_list, label in new_clusters:
             if len(agent_idx_list) == 0:
-                logging.debug(f"No agents in cluster {label} at time step {time_step}, skipping.")
+                logger.debug(
+                    "No agents in cluster %s at time step %s, skipping",
+                    label,
+                    time_step,
+                )
                 continue
 
             if merge is True:
@@ -273,7 +278,7 @@ def diversify(
                 other_profiles = np.stack(
                     population_current[population_current["language"] == neighbor_language][
                         "language_profile"
-                    ]
+                    ],
                 )
 
                 # Combine all language profiles and check whether they form a coherent cluster
@@ -283,8 +288,11 @@ def diversify(
                 if coherence:
                     # Merge clusters by assigning the other language label
                     population_current.loc[agent_idx_list, "language"] = neighbor_language
-                    logging.debug(
-                        f"Merge cluster {label} to existing language {neighbor_language} at step {time_step}"
+                    logger.debug(
+                        "Merge cluster %s to existing language %s at step %s",
+                        label,
+                        neighbor_language,
+                        time_step,
                     )
                     shift_counter += 1
                     break  # Exit after merging to avoid multiple merges
@@ -292,13 +300,13 @@ def diversify(
             # If agents in the new cluster have not been assigned a language yet, assign a new language ID
             language_values = population_current.loc[agent_idx_list, "language"]
             if language_values.isna().all():
-                logging.debug(f"Assigning new language {label} to cluster at time_step {time_step}")
+                logger.debug("Assigning new language %s to cluster at time_step %s", label, time_step)
                 population_current.loc[agent_idx_list, "language"] = label
 
         # Update population with new language assignments
         population_total = pd.concat([population_total, population_current], ignore_index=True)
         # Record meta data for this time step
-        meta_data.loc[len(meta_data)] = [time_step, shift_counter]
+        meta_data.loc[len(meta_data)] = [int(time_step), int(shift_counter)]
 
     # Save output to a single gpkg file
     population_total.to_file(directory / f"population_{linkage}.gpkg", driver="GPKG")
@@ -310,5 +318,7 @@ def diversify(
         # Compute number of unique languages at the last time step
         last_step = int(population_total["time_step"].max())
         languages_last = population_total.loc[population_total["time_step"] == last_step, "language"].unique()
-        logging.info(f"Last time step: {last_step}; number of languages: {len(languages_last)}")
+        logger.info("Last time step: %s; number of languages: %s", last_step, len(languages_last))
         return len(languages_last)
+
+    return None

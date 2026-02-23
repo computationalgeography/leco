@@ -1,13 +1,15 @@
-"""Clusters per step"""
+"""Clusters per step."""
 
+import logging
 from pathlib import Path
-from tqdm import tqdm
 
 import geopandas as gpd
-import logging
 import numpy as np
 import pandas as pd
 from sklearn.cluster import AgglomerativeClustering
+from tqdm import tqdm
+
+logger = logging.getLogger(__name__)
 
 
 def read_geoparquet(
@@ -58,21 +60,17 @@ def initialize_languages(
     language_profiles = np.stack(start_population["language_profile"])
     if len(start_population) == 1:
         return np.array([0])
-    clusters = language_classification(language_profiles, dist_threshold, linkage)
 
-    return clusters
+    return language_classification(language_profiles, dist_threshold, linkage)
 
 
-def diversify(
+def diversify_stepwise(
     directory: Path,
     dist_threshold: float,
     linkage: str,
-    radius: float,
     sensitivity: bool = False,
-    similar: bool = True,
-    merge: bool = False,
-) -> int:
-    """ "Cluster languages per time step based on clustering previous time step"""
+) -> None | int:
+    """Cluster languages per time step based on clustering previous time step."""
     # Read the population data across all time_steps
     population = read_geoparquet(directory)
     # Initialize language column as -1 to keep track of unclassified
@@ -94,5 +92,7 @@ def diversify(
         # Compute number of unique languages at the last time step
         last_step = int(population["time_step"].max())
         languages_last = population.loc[population["time_step"] == last_step, "language"].unique()
-        logging.info(f"Last time step: {last_step}; number of languages: {len(languages_last)}")
+        logger.info("Last time step: %s; number of languages: %s", last_step, len(languages_last))
         return len(languages_last)
+
+    return None

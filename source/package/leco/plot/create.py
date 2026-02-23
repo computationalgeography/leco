@@ -3,12 +3,12 @@
 from pathlib import Path
 
 import geopandas as gpd
-import logging
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 
 from .animation import plot_animation
+from .interactive_3d import plot_3d_fig
 from .summary import plot_summaries
 
 
@@ -19,9 +19,11 @@ def create_colormap(
     """Create a consistent colormap for the languages present in the simulation output."""
     rng = np.random.default_rng(seed)
     nr_colors = 20
-    base_cmaps = ["Greys", "Purples", "Reds", "Blues", "Oranges", "Greens", "RdPu"]
+    base_colour_maps = ["Greys", "Purples", "Reds", "Blues", "Oranges", "Greens", "RdPu"]
 
-    raw_colors = np.concatenate([plt.get_cmap(name)(np.linspace(0.2, 0.8, nr_colors)) for name in base_cmaps])
+    raw_colors = np.concatenate(
+        [plt.get_cmap(name)(np.linspace(0.2, 0.8, nr_colors)) for name in base_colour_maps],
+    )
 
     rng.shuffle(raw_colors)
     # Create a deterministic assignment based on language names
@@ -47,18 +49,17 @@ def create_colormap(
 def plot(
     data: Path,
     parameters: dict,
+    local: bool = False,
 ) -> None:
     """Create plots of the leco model output."""
     population = gpd.read_file(data)
 
     cmap, lang_to_index = create_colormap(population.language, parameters["initialization"]["seed"])
 
-    logging.debug("Create summarizing plots of the leco model output")
     plot_summaries(data, cmap, lang_to_index)
 
-    logging.debug("Create animation of the leco model output")
     plot_animation(data, parameters, cmap)
 
-    logging.debug("Create 3D interactive plot of the leco model output")
-    # Creates interactive plot so only use this when running locally
-    # plot_3d_fig(data, cmap)
+    if local:
+        # Creates interactive plot so only use this when running locally
+        plot_3d_fig(data, cmap)

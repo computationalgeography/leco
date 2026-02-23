@@ -31,14 +31,14 @@ line-length = 110
 select = ["E", "F"]
 fix = true
 
-[tool.lint]
+[tool.ruff.lint]
 select = ["ALL"]
 ignore = [
     # 'print' statement found
     "T201",
     # too many arguments in function definition
     "PLR0913",
-    # specifying long messages outside exception class      #WANT TO LEAVE VALUEERROS OUT EVENTUALLY ANYWAYS
+    # specifying long messages outside exception class      #WANT TO LEAVE VALUE ERRORS OUT EVENTUALLY ANYWAYS
     "TRY003",
     # allow magic variables to be defined
     "PLR2004",
@@ -46,4 +46,16 @@ ignore = [
     "DTZ005",
     # Specify docstring at start of file
     "D100",
+    # Prefer absolute inputs of relative inputs
+    "TID252",
+    # Boolean (typed / default) positional value in function call
+    "FBT001", "FBT002", "FBT003",
+    # Use a regular 'assert' instead of unittest-style 'assertNotIn'
+    "PT009",
 ]
+
+# Ignore specific commands for the following files
+[tool.ruff.lint.per-file-ignores]
+"source/package/leco/cli/main.py" = ["D103", "ANN002", "ANN003", "BLE001"]
+"source/package/leco/cli/spawn.py" = ["D103", "S101"]
+"source/test/*" = ["D101", "ANN201", "D102", "D104", "PLR0402", "I001"]
