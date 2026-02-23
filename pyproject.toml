@@ -60,10 +60,12 @@ ignore = [
     "FBT001", "FBT002", "FBT003",
     # Use a regular 'assert' instead of unittest-style 'assertNotIn'
     "PT009",
+    #  Shebang is present but file is not executable; discuss with Kor
+    "EXE001",
 ]
 
 # Ignore specific commands for the following files
 [tool.ruff.lint.per-file-ignores]
 "source/package/leco/cli/main.py" = ["D103", "ANN002", "ANN003", "BLE001"]
 "source/package/leco/cli/spawn.py" = ["D103", "S101"]
-"source/test/*" = ["D101", "ANN201", "D102", "D104", "PLR0402", "I001"]
+"source/test/*" = ["D101", "ANN201", "D102", "D104", "PLR0402", "I001", "D103", "PTH120"]
