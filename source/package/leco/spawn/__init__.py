@@ -63,7 +63,7 @@ def as_string(value: int | float) -> str:
 
 def expand_parameter(
     default_configuration: dict,
-    parameter: list[str],
+    parameter: tuple[str, str, dict],
     directory_pathname_pattern: str,
     cwd: Path,
 ) -> list[tuple[dict, Path]]:
@@ -71,7 +71,7 @@ def expand_parameter(
     Return as many copies of configurations as there are values in the parameter passed in
 
     :param default_configuration: Configuration to tweak for parameter value
-    :param parameter: A list with three strings: section name, parameter name, parameter value
+    :param parameter: A list with: section name, parameter name, parameter value
     :param directory_pathname_pattern: Template for creating unique output directory pathnames
     :param cwd: Current working directory
     :return: List of tuples, each of which contains a configuration and an output directory path
@@ -86,10 +86,10 @@ def expand_parameter(
     configurations = []
     section_name, parameter_name, value = parameter
 
-    for value in parameter_values[list(value.keys())[0]](value):
+    for value_ in parameter_values[list(value.keys())[0]](value):
         configuration = copy.deepcopy(default_configuration)
-        configuration[section_name][parameter_name] = float(as_string(value))
-        directory_pathname = directory_pathname_pattern.replace(f"{{{parameter_name:}}}", as_string(value))
+        configuration[section_name][parameter_name] = float(as_string(value_))
+        directory_pathname = directory_pathname_pattern.replace(f"{{{parameter_name:}}}", as_string(value_))
         directory_path = cwd / directory_pathname
 
         configurations.append((configuration, directory_path))
@@ -123,7 +123,7 @@ def substitute_default_values(
 
 def merge_configurations(
     default_configuration: dict, spawn_configuration: dict, cwd: Path
-) -> list[tuple[frozendict, Path]]:
+) -> set[tuple[frozendict, Path]]:
     """
     Tweak default Leco configurations given a spawn configuration
 
@@ -159,7 +159,7 @@ def merge_configurations(
             )
             configurations += expand_parameter(
                 default_configuration,
-                [section, parameter, value],
+                (section, parameter, value),
                 directory_pathname,
                 cwd,
             )
@@ -172,7 +172,7 @@ def merge_configurations(
     return unique_configurations
 
 
-def configurations(configuration_file_path: Path) -> list[tuple[dict, Path]]:
+def configurations(configuration_file_path: Path) -> set[tuple[frozendict, Path]]:
     """
     "Compute" a configuration and determine where to store the results
     """
