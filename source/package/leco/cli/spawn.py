@@ -10,6 +10,7 @@ from ..version import __version__ as version
 
 
 def main() -> None:
+    """Command line interface for spawn command."""
     command = Path(sys.argv[0]).name
     usage = f"""\
 Spawn concurrent leco model runs
@@ -32,7 +33,10 @@ The configuration file determines what kind of runs will be spawned.
     max_nr_workers = int(arguments["--max_nr_workers"])
     configuration_file_path = Path(arguments["<configuration_file>"])
 
-    assert max_nr_workers > 0, max_nr_workers
-    assert configuration_file_path.exists(), configuration_file_path
+    if max_nr_workers <= 0:
+        raise ValueError("--max_nr_workers must be larger than zero")
+
+    if not configuration_file_path.exists():
+        raise ValueError(f"Configuration file {configuration_file_path} does not exist")
 
     spawn.spawn(configuration_file_path, max_nr_workers)

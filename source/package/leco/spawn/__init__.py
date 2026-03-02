@@ -1,19 +1,16 @@
-"""
-Code related to spawning multiple leco runs
-"""
+"""Code related to spawning multiple leco runs."""
 
 import concurrent
 import copy
-from decimal import Decimal, getcontext
 import os
+from collections.abc import Generator
+from decimal import Decimal, getcontext
 from pathlib import Path
-import tomllib
-from typing import Generator
 
+import tomllib
 from frozendict import deepfreeze, frozendict
 
 from ..model.simulation import simulate as model_simulate
-
 
 __all__ = ["default_max_nr_workers", "spawn"]
 
@@ -22,29 +19,24 @@ getcontext().prec = 6
 
 
 def default_max_nr_workers() -> int:
-    """
-    Return default maximum number of workers (processes using a single CPU core) to use
-    """
+    """Return default maximum number of workers (processes using a single CPU core) to use."""
     return (os.cpu_count() or 2) // 2
 
 
 def expand_range(parameter: dict) -> Generator[int | float, None, None]:
-    """
-    Yield each value in parameter["range"]
-    """
+    """Yield each value in parameter["range"]."""
     value, stop, step = parameter["range"]
-    assert value <= stop
+
+    if value > stop:
+        raise ValueError("Start value of range must not be larger than the stop value")
 
     while value < stop:
-        assert isinstance(value, (int, float))
         yield value
         value += step
 
 
 def expand_set(parameter: dict) -> Generator[int | float, None, None]:
-    """
-    Yield each value in parameter["set"]
-    """
+    """Yield each value in parameter["set"]."""
     values = set(parameter["set"])
 
     for value in values:
@@ -52,7 +44,7 @@ def expand_set(parameter: dict) -> Generator[int | float, None, None]:
         yield value
 
 
-def as_string(value: int | float) -> str:
+def as_string(value: float) -> str:
     string = str(Decimal(value) * Decimal(1))
 
     if string.find(".") != -1:
@@ -67,8 +59,7 @@ def expand_parameter(
     directory_pathname_pattern: str,
     cwd: Path,
 ) -> list[tuple[dict, Path]]:
-    """
-    Return as many copies of configurations as there are values in the parameter passed in
+    """Return as many copies of configurations as there are values in the parameter passed in.
 
     :param default_configuration: Configuration to tweak for parameter value
     :param parameter: A list with: section name, parameter name, parameter value
@@ -86,7 +77,7 @@ def expand_parameter(
     configurations = []
     section_name, parameter_name, value = parameter
 
-    for value_ in parameter_values[list(value.keys())[0]](value):
+    for value_ in parameter_values[next(iter(value.keys()))](value):
         configuration = copy.deepcopy(default_configuration)
         configuration[section_name][parameter_name] = float(as_string(value_))
         directory_pathname = directory_pathname_pattern.replace(f"{{{parameter_name:}}}", as_string(value_))
@@ -103,29 +94,29 @@ def substitute_default_values(
     variable_parameter_values: dict,
     overridden_parameter: tuple[str, str],
 ) -> str:
-    """
-    Substitute parameter value placeholders in a pathname by their default values
-    """
+    """Substitute parameter value placeholders in a pathname by their default values."""
     section, parameter = overridden_parameter
     directory_pathname = directory_pathname_pattern
 
     for a_section, a_parameters in variable_parameter_values.items():
-        for a_parameter in a_parameters.keys():
+        for a_parameter in a_parameters:
             if not (a_section == section and a_parameter == parameter):
                 # Replace {parameter} by its default value
                 default_value = default_configuration[a_section][a_parameter]
                 directory_pathname = directory_pathname.replace(
-                    f"{{{a_parameter}}}", as_string(default_value)
+                    f"{{{a_parameter}}}",
+                    as_string(default_value),
                 )
 
     return directory_pathname
 
 
 def merge_configurations(
-    default_configuration: dict, spawn_configuration: dict, cwd: Path
+    default_configuration: dict,
+    spawn_configuration: dict,
+    cwd: Path,
 ) -> set[tuple[frozendict, Path]]:
-    """
-    Tweak default Leco configurations given a spawn configuration
+    """Tweak default Leco configurations given a spawn configuration.
 
     :return: A list of tuples, each of which contains a unique configuration and a unique output directory
              path
@@ -133,7 +124,7 @@ def merge_configurations(
     configurations = []
 
     directory_pathname_pattern = os.path.expandvars(
-        os.path.expanduser(spawn_configuration["directory_pattern"])
+        Path(spawn_configuration["directory_pattern"]).expanduser(),
     )
 
     assert "sensitivity" in spawn_configuration  # For now
@@ -164,18 +155,16 @@ def merge_configurations(
                 cwd,
             )
 
-    unique_configurations = set([(deepfreeze(tuple_[0]), tuple_[1]) for tuple_ in configurations])
+    unique_configurations = {(deepfreeze(tuple_[0]), tuple_[1]) for tuple_ in configurations}
 
     # All paths should be unique
-    assert len(set(tuple_[1] for tuple_ in unique_configurations)) == len(unique_configurations)
+    assert len({tuple_[1] for tuple_ in unique_configurations}) == len(unique_configurations)
 
     return unique_configurations
 
 
 def configurations(configuration_file_path: Path) -> set[tuple[frozendict, Path]]:
-    """
-    "Compute" a configuration and determine where to store the results
-    """
+    """Determine a configuration and where to store the results."""
     with Path.open(configuration_file_path, "rb") as configuration_file:
         spawn_configuration = tomllib.load(configuration_file)
 
@@ -190,12 +179,13 @@ def configurations(configuration_file_path: Path) -> set[tuple[frozendict, Path]
     return merge_configurations(run_configuration, spawn_configuration, cwd)
 
 
-def simulate(arguments):
+def simulate(arguments: dict) -> None | float:
     # TODO: turn off progress
     model_simulate(*arguments)
 
 
 def spawn(configuration_file_path: Path, max_nr_workers: int) -> None:
+    """Spawn Leco runs."""
     # NOTE: We are assuming here that we need to *run* the model. Otherwise add subcommands (run,
     #       postprocess, ...).
     configurations_ = configurations(configuration_file_path)
@@ -203,5 +193,5 @@ def spawn(configuration_file_path: Path, max_nr_workers: int) -> None:
     for _, directory_path in configurations_:
         directory_path.mkdir(parents=True, exist_ok=False)
 
-    with concurrent.futures.ProcessPoolExecutor() as executor:
+    with concurrent.futures.ProcessPoolExecutor(max_workers=max_nr_workers) as executor:
         executor.map(simulate, configurations_)
