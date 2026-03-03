@@ -28,13 +28,9 @@ packages = ["source/package/leco"]
 
 [tool.ruff]
 line-length = 110
-select = ["E", "F"]
-fix = true
 exclude = [
     ### sensitivity_analysis files are under development and might nog be needed
     "source/package/leco/sensitivity_analysis",
-    ## Kor's scripts
-    "source/package/leco/spawn",
     ## Unclear problem
     "documentation/",
 ]
@@ -57,15 +53,32 @@ ignore = [
     # Prefer absolute inputs of relative inputs
     "TID252",
     # Boolean (typed / default) positional value in function call
-    "FBT001", "FBT002", "FBT003",
+    "FBT001",
+    "FBT002",
+    "FBT003",
     # Use a regular 'assert' instead of unittest-style 'assertNotIn'
     "PT009",
-    #  Shebang is present but file is not executable; discuss with Kor
+    # Shebang is present but file is not executable; discuss with Kor
     "EXE001",
+    "EM101",
+    "EM102",
+    "S101",
+    "TD002",
+    "TD003",
+    "FIX002",
 ]
 
 # Ignore specific commands for the following files
 [tool.ruff.lint.per-file-ignores]
 "source/package/leco/cli/main.py" = ["D103", "ANN002", "ANN003", "BLE001"]
-"source/package/leco/cli/spawn.py" = ["D103", "S101"]
-"source/test/*" = ["D101", "ANN201", "D102", "D104", "PLR0402", "I001", "D103", "PTH120"]
+# "source/package/leco/cli/spawn.py" = ["D103", "S101"]
+"source/test/*" = [
+    "D101",
+    "ANN201",
+    "D102",
+    "D104",
+    "PLR0402",
+    "I001",
+    "D103",
+    "PTH120",
+]

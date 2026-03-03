@@ -28,7 +28,7 @@ class PackageTest(unittest.TestCase):
 
     def test_as_string(self):
         self.assertEqual(spawn.as_string(1), "1")
-        self.assertEqual(float("1"), float(1))
+        self.assertEqual(int("1"), 1)
 
         self.assertEqual(spawn.as_string(0.1), "0.1")
         self.assertEqual(float("0.1"), 0.1)
