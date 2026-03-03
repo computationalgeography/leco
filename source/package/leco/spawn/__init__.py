@@ -185,7 +185,7 @@ def simulate(arguments: dict) -> None | float:
     model_simulate(*arguments)
 
 
-def spawn(configuration_file_path: Path, max_nr_workers: int) -> None:
+def spawn(configuration_file_path: Path, *, max_nr_workers: int, continue_on_error: bool) -> None:
     """Spawn Leco runs."""
     # NOTE: We are assuming here that we need to *run* the model. Otherwise add subcommands (run,
     #       postprocess, ...).
@@ -194,7 +194,19 @@ def spawn(configuration_file_path: Path, max_nr_workers: int) -> None:
     for _, directory_path in configurations_:
         directory_path.mkdir(parents=True, exist_ok=False)
 
+    generators = []
+
     with concurrent.futures.ProcessPoolExecutor(max_workers=max_nr_workers) as executor:
-        # TODO: Handle errors
-        for result in executor.map(simulate, configurations_):
-            print(result)
+        generator = executor.map(simulate, configurations_)
+
+        # Obtaining the result raises any exception thrown and stops further processing
+        if continue_on_error:
+            # Delay obtaining results
+            generators.append(generator)
+        else:
+            # Obtain results now
+            list(generator)
+
+    if continue_on_error:
+        for generator in generators:
+            list(generator)
