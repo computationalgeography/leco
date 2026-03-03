@@ -79,7 +79,8 @@ def expand_parameter(
 
     for value_ in parameter_values[next(iter(value.keys()))](value):
         configuration = copy.deepcopy(default_configuration)
-        configuration[section_name][parameter_name] = float(as_string(value_))
+        parameter_value = float(as_string(value_)) if isinstance(value_, float) else int(as_string(value_))
+        configuration[section_name][parameter_name] = parameter_value
         directory_pathname = directory_pathname_pattern.replace(f"{{{parameter_name:}}}", as_string(value_))
         directory_path = cwd / directory_pathname
 
@@ -194,4 +195,6 @@ def spawn(configuration_file_path: Path, max_nr_workers: int) -> None:
         directory_path.mkdir(parents=True, exist_ok=False)
 
     with concurrent.futures.ProcessPoolExecutor(max_workers=max_nr_workers) as executor:
-        executor.map(simulate, configurations_)
+        # TODO: Handle errors
+        for result in executor.map(simulate, configurations_):
+            print(result)
