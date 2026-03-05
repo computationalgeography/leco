@@ -44,6 +44,12 @@ def expand_set(parameter: dict) -> Generator[int | float, None, None]:
         yield value
 
 
+expand = {
+    "range": expand_range,
+    "set": expand_set,
+}
+
+
 def as_string(value: float) -> str:
     string = str(Decimal(value) * Decimal(1))
 
@@ -70,14 +76,10 @@ def expand_parameter(
     The parameter value can be represented by a range or a set of values. For each real value in these
     collections, a configuration is returned, along with a directory to store results in.
     """
-    parameter_values = {
-        "range": expand_range,
-        "set": expand_set,
-    }
     configurations = []
     section_name, parameter_name, value = parameter
 
-    for value_ in parameter_values[next(iter(value.keys()))](value):
+    for value_ in expand[next(iter(value.keys()))](value):
         configuration = copy.deepcopy(default_configuration)
         parameter_value = float(as_string(value_)) if isinstance(value_, float) else int(as_string(value_))
         configuration[section_name][parameter_name] = parameter_value
@@ -141,20 +143,54 @@ def merge_configurations(
         if section in sensitivity_run_configuration:
             variable_parameter_values[section] = sensitivity_run_configuration[section]
 
+    # Seed is special. If a range (or a set) of seeds is passed in, all runs need to be executed for each of
+    # these. If no such range (or set) is passed in, then don't do anything fancy.
+    seed_parameter = None
+
+    if (
+        "initialization" in variable_parameter_values
+        and "seed" in variable_parameter_values["initialization"]
+    ):
+        seed_parameter = variable_parameter_values["initialization"]["seed"]
+        del variable_parameter_values["initialization"]["seed"]
+
     for section, parameters in variable_parameter_values.items():
         for parameter, value in parameters.items():
+            assert not (section == "initialization" and parameter == "seed")
+
+            # Tweak the default configuration for the current parameter
             directory_pathname = substitute_default_values(
                 directory_pathname_pattern,
                 default_configuration,
                 variable_parameter_values,
                 (section, parameter),
             )
-            configurations += expand_parameter(
+
+            configurations_ = expand_parameter(
                 default_configuration,
                 (section, parameter, value),
                 directory_pathname,
                 cwd,
             )
+
+            if seed_parameter is not None:
+                # Tweak the current configurations for seed. Store results in different collection.
+                configurations__ = []
+                for configuration, directory_path in configurations_:
+                    configurations__ += expand_parameter(
+                        configuration,
+                        ("initialization", "seed", seed_parameter),
+                        str(directory_path),
+                        cwd,
+                    )
+                # Overwrite original collection
+                configurations_ = configurations__
+
+            # All paths should be unique
+            assert len({tuple_[1] for tuple_ in configurations_}) == len(configurations_), configurations_
+
+            # Update overall result collection
+            configurations += configurations_
 
     unique_configurations = {(deepfreeze(tuple_[0]), tuple_[1]) for tuple_ in configurations}
 
