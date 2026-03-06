@@ -118,6 +118,7 @@ def initialize_population(
                 "id": ids,
                 "language_profile": language_profile,
                 "parent_id": [(-1) for _ in range(nr_agents)],
+                "time_step": [(0) for _ in range(nr_agents)],
             },
             geometry=gpd.points_from_xy(x, y),
             crs="+proj=cart +units=km +type=crs",
