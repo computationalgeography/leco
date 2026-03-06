@@ -1,8 +1,8 @@
 [initialization]
-agents = 1000
-steps = 1000
-seed = 42
-nr_start_languages = 1
+agents = 5
+steps = 20
+seed = 51
+nr_start_languages = 5
 
 [space]
 shape = [1000, 1000]
@@ -24,17 +24,17 @@ speed = 20
 [language]
 meanings = 100
 forms = 120
-mutation_rate = 0.0001
+mutation_rate = 0.001
 
 [population_dynamics]
-death_rate = 0.0005
-birth_rate = 0.0005
-logistic_growth = false
+death_rate = 0.01
+birth_rate = 0.01
+logistic_growth = true
 carrying_capacity = 10
 end_growth_time = 50
 
 [interaction]
-radius = 30
-partner_proportion = 0.3
-diffusion_rate = 0.07
-similarity_preference = 0.5
+radius = 20
+partner_proportion = 0.8
+diffusion_rate = 0.01
+similarity_preference = 0.2
