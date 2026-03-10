@@ -13,4 +13,5 @@ SaLib
 scikit-learn
 shapely
 sphinx
+tomli_w
 tqdm
