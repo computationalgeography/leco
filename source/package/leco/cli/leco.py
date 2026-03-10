@@ -82,43 +82,46 @@ def create_directory(directory_path: str) -> Path:
     return directory_path
 
 
+def usage() -> str:
+    """Return usage string of the leco command."""
+    command = Path(sys.argv[0]).name
+    return f"""\
+    Run leco model
+
+    Usage:
+        {command} run [--debug] <configuration_file> <directory>
+        {command} cluster [--debug] [--method <all|feed_forward|step>]
+            [--linkage <single|average|complete>] [--distance <distance_threshold>]
+            <configuration_file> <directory>
+        {command} plot [--debug] <configuration_file> <gpkg_file>
+        {command} sensitivity [--debug] [--method <all|feed_forward>]
+            [--distance <distance_threshold>] <configuration_file> <directory>
+
+    Options:
+    -h --help                             Show this screen and exit
+    --version                             Show version and exit
+    <configuration_file>                  Path to a TOML configuration file
+    --debug                               Enable debug logging
+    --distance <distance_threshold>       Distance threshold to set clusters
+                                            [default: 0.3]
+    <gpkg_file>                           Path to a gpkg file after clustering
+    <directory>                           Directory to store/read the output
+    --linkage <single|average|complete>   Clustering linkage to use
+                                            [default: average]
+    --method <all|feed_forward|step>      Clustering method to use
+                                            [default: feed_forward]
+
+    Typical workflow:
+        {command} run configuration.toml results
+        {command} cluster --method all --distance 0.2 configuration.toml results
+        {command} plot configuration.toml population.gpkg
+        {command} sensitivity configuration.toml sensitivity_results
+    """
+
+
 def main() -> None:
     """Command line interface for leco model."""
-    command = Path(sys.argv[0]).name
-    usage = f"""\
-Run leco model
-
-Usage:
-    {command} run [--debug] <configuration_file> <directory>
-    {command} cluster [--debug] [--method <all|feed_forward|step>]
-        [--linkage <single|average|complete>] [--distance <distance_threshold>]
-        <configuration_file> <directory>
-    {command} plot [--debug] <configuration_file> <gpkg_file>
-    {command} sensitivity [--debug] [--method <all|feed_forward>]
-        [--distance <distance_threshold>] <configuration_file> <directory>
-
-Options:
-  -h --help                             Show this screen and exit
-  --version                             Show version and exit
-  <configuration_file>                  Path to a TOML configuration file
-  --debug                               Enable debug logging
-  --distance <distance_threshold>       Distance threshold to set clusters
-                                        [default: 0.3]
-  <gpkg_file>                           Path to a gpkg file after clustering
-  <directory>                           Directory to store/read the output
-  --linkage <single|average|complete>   Clustering linkage to use
-                                        [default: average]
-  --method <all|feed_forward|step>      Clustering method to use
-                                        [default: feed_forward]
-
-Typical workflow:
-    {command} run configuration.toml results
-    {command} cluster --method all --distance 0.2 configuration.toml results
-    {command} plot configuration.toml population.gpkg
-    {command} sensitivity configuration.toml sensitivity_results
-"""
-
-    arguments = docopt.docopt(usage, sys.argv[1:], version=version)
+    arguments = docopt.docopt(usage(), sys.argv[1:], version=version)
 
     if arguments["--debug"]:
         logging.basicConfig(level=logging.DEBUG)
