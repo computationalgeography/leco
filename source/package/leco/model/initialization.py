@@ -72,6 +72,33 @@ def initialize_language_profile(
     return rng.integers(0, nr_forms, nr_meanings)
 
 
+def initialize_spatial_profile_assignments(
+    x: np.ndarray,
+    y: np.ndarray,
+    nr_languages: int,
+    rng: np.random.default_rng,
+) -> np.ndarray:
+    """Assign language-profile indices to agents so that profiles are spatially grouped.
+
+    Voronoi partitioning: pick `nr_languages` seed agents and assign every agent to the nearest seed
+    """
+    nr_agents = len(x)
+
+    coordinates = np.column_stack([x, y])
+
+    # Randomly pick start agents (unique indices)
+    seed_idx = rng.choice(nr_agents, size=nr_languages, replace=False)
+    seed_coords = coordinates[seed_idx]
+
+    # Squared Euclidean distance to each seed; shape: (nr_agents, k)
+    diff = coordinates[:, None, :] - seed_coords[None, :, :]
+    sq_dist = np.sum(diff * diff, axis=2)
+
+    # Assign each agent to its nearest seed
+    # If nr_languages > nr_agents, just keep assignments in [0, nr_agents-1]
+    return np.argmin(sq_dist, axis=1).astype(int)
+
+
 def initialize_population(
     nr_agents: int,
     space: list[float],
@@ -101,9 +128,12 @@ def initialize_population(
     # Create the start language profiles, number is equal to nr_languages
     start_profiles = [initialize_language_profile(nr_meanings, nr_forms, rng) for _ in range(nr_languages)]
 
-    # Evenly distribute the start language profiles across the agents
-    profile_assignments = np.array([i % nr_languages for i in range(nr_agents)])
-    rng.shuffle(profile_assignments)  # Randomize the order
+    # Assign language profiles to agents
+    # If there are multiple languages initialized, assign the language profiles spatially grouped.
+    if nr_languages > 1:
+        profile_assignments = initialize_spatial_profile_assignments(x, y, nr_languages, rng)
+    else:
+        profile_assignments = np.zeros(nr_agents, dtype=int)
 
     # Assign the start profiles to the agents
     language_profile = [start_profiles[assignment].copy() for assignment in profile_assignments]
