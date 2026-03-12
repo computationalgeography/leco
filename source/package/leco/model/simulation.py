@@ -22,9 +22,9 @@ def mutate_profile(
     nr_agents, nr_meanings = language_profiles.shape
 
     # Generate mutation masks for all agents at once
-    mutation_prob = rng.random((nr_agents, nr_meanings))
+    mutation_probabilities = rng.random((nr_agents, nr_meanings))
 
-    mutation_mask = mutation_prob < profile_attributes["mutation_rate"]
+    mutation_mask = mutation_probabilities < profile_attributes["mutation_rate"]
 
     # Generate the new forms
     mutated_forms = rng.integers(
