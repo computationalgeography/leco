@@ -89,6 +89,9 @@ def find_neighboring_clusters(current_step: gpd.GeoDataFrame, radius: int) -> di
     # Exclude neighbors that just split from the same previous language
     neighbors = neighbors[neighbors.previous_language_left != neighbors.previous_language_right]
 
+    # Drop any nan neighbor ids (unmatched left-join rows)
+    neighbors = neighbors.dropna(subset=["candidate_language_right"])
+
     # Group by the left cluster and get the list of right clusters for each left cluster
     return neighbors.groupby("candidate_language_left")["candidate_language_right"].apply(list).to_dict()
 
@@ -169,7 +172,7 @@ def find_merging_events(
 
     # No merges have occurred when there is only one candidate cluster
     if len(cluster_ids) <= 1:
-        return current_step
+        return current_step, convergence_counter
 
     # Precompute agent profiles per cluster
     cluster_profiles = (
@@ -488,15 +491,6 @@ def diversify(
     sensitivity: bool = False,
 ) -> None | int:
     """Cluster languages per time step based on clustering previous time step."""
-    # Create a dataframe to store meta data on the language divergence and convergence
-    meta_data = pd.DataFrame(
-        {
-            "time_step": [0],
-            "convergences": [0],
-            "divergences": [0],
-        },
-    )
-
     # Dataframe of the population at the initial time step
     population_current = read_population(directory, 0)
     # First time_step: initialize the start languages
@@ -507,6 +501,17 @@ def diversify(
     )
     population_current["language"] = languages.astype(int)
     max_language_id = languages.max()
+
+    # Create a dataframe to store meta data on the language divergence and convergence
+    meta_data = pd.DataFrame(
+        {
+            "time_step": [0],
+            "convergences": [0],
+            "divergences": [0],
+            "language_number": [population_current["language"].nunique()],
+            "speaker_numbers": [population_current.groupby("language")["id"].count().sort_index().to_numpy()],
+        },
+    )
 
     if "previous_language" not in population_current.columns:
         # Initialize previous language as integer type
@@ -533,6 +538,9 @@ def diversify(
             divergence_counter,
         )
 
+        if np.any(population_current["candidate_language"] == -1):
+            logger.error("Be careful! Candidate language not fully assigned after splitting")
+
         # Find all neighboring clusters within radius
         all_neighbors = find_neighboring_clusters(population_current, radius)
 
@@ -557,9 +565,20 @@ def diversify(
         population_current = population_current.drop("candidate_language", axis=1)
         # Update population with new language assignments
         population_total.append(population_current)
-        # Record meta data for this time step
 
-        meta_data.loc[len(meta_data)] = [int(time_step), int(divergence_counter), int(convergence_counter)]
+        # Record meta data for this time step
+        number_languages = population_current["language"].nunique()
+
+        # 1D numpy array of speaker counts, ordered by language ID
+        language_speakers = population_current.groupby("language")["id"].count().sort_index().to_numpy()
+
+        meta_data.loc[len(meta_data)] = [
+            int(time_step),
+            int(divergence_counter),
+            int(convergence_counter),
+            number_languages,
+            language_speakers,
+        ]
 
     # Save output to a single gpkg file
     pd.concat(population_total, ignore_index=True).to_file(
@@ -567,7 +586,10 @@ def diversify(
         driver="GPKG",
     )
 
-    # Save meta data to csv file
+    # Save meta data to csv with speaker numbers as string
+    meta_data["speaker_numbers"] = meta_data["speaker_numbers"].apply(
+        lambda x: np.array2string(x, separator=",", max_line_width=np.inf, threshold=np.inf).strip("[]"),
+    )
     meta_data.to_csv(directory / "meta_data_cluster.csv", index=False)
 
     if sensitivity:
