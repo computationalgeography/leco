@@ -1,0 +1,22 @@
+name: lecoenv
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - build
+  - datetime
+  - docopt
+  - frozendict
+  - geopandas
+  - matplotlib
+  - networkx
+  - numpy
+  - pandas
+  - pre-commit
+  - pyarrow
+  - SaLib
+  - scikit-learn
+  - shapely
+  - sphinx
+  - tomli_w
+  - tqdm
