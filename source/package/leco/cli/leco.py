@@ -48,6 +48,7 @@ def cluster_languages(arguments: dict, configuration: dict) -> None:
             linkage,
             configuration["initialization"]["steps"],
             configuration["interaction"]["radius"],
+            configuration["initialization"]["write_interval"],
         )
     else:
         classification_by_method[method](directory, distance_threshold, linkage)

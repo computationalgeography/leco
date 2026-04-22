@@ -2,6 +2,7 @@
 agents = 5
 steps = 20
 seed = 51
+write_interval = 200
 nr_start_languages = 5
 
 [space]

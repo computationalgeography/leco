@@ -46,6 +46,11 @@ def simulate(p: dict, directory: Path, sensitivity: bool = False) -> None | floa
     """Run the LECo model of Linguistic Evolutionary COmputations."""
     # Initialize seed
     rng = np.random.default_rng(p["initialization"]["seed"])
+    steps = p["initialization"]["steps"]
+    write_interval = p["initialization"]["write_interval"]
+
+    # Initialize buffer to store population data for writing to geoparquet file
+    population_buffer = []
 
     # Initialize a spatial barrier if specified
     barrier = None
@@ -77,9 +82,9 @@ def simulate(p: dict, directory: Path, sensitivity: bool = False) -> None | floa
     )
 
     # Write initialization dataframe to a .geoparquet file
-    population.to_parquet(directory / "output000.geoparquet")
+    population.to_parquet(directory / "steps_0000.geoparquet")
 
-    for step in tqdm(range(1, p["initialization"]["steps"] + 1)):
+    for step in tqdm(range(1, steps + 1)):
         # Add the current time step to the population dataframe
         population["time_step"] = step
 
@@ -122,9 +127,22 @@ def simulate(p: dict, directory: Path, sensitivity: bool = False) -> None | floa
         # Record meta data for this time step
         meta_data.loc[len(meta_data)] = [step, internal_change, external_change]
 
-        # Save output per time step to geoparquet file
-        population.to_parquet(
-            directory / f"output{step:03d}.geoparquet",
+        # Add current population to buffer
+        population_buffer.append(population.copy())
+
+        # Save output per write_interval to geoparquet file
+        if step % write_interval == 0:
+            combined_population = pd.concat(population_buffer, ignore_index=True)
+            combined_population.to_parquet(
+                directory / f"steps_{step - write_interval + 1:04d}_{step:04d}.geoparquet",
+            )
+            population_buffer = []
+
+    # Write any remaining steps
+    if population_buffer:
+        last_written_end = (steps // write_interval) * write_interval
+        pd.concat(population_buffer, ignore_index=True).to_parquet(
+            directory / f"steps_{last_written_end + 1:04d}_{steps:04d}.geoparquet",
         )
 
     # Save meta data to csv file
