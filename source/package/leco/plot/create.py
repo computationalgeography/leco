@@ -58,8 +58,8 @@ def plot(
 
     plot_summaries(data, cmap, lang_to_index)
 
-    plot_animation(data, parameters, cmap)
-
     if local:
         # Creates interactive plot so only use this when running locally
         plot_3d_fig(data, cmap)
+        # Create animation plot
+        plot_animation(data, parameters, cmap, lang_to_index)
