@@ -4,6 +4,7 @@ docopt
 frozendict
 geopandas
 matplotlib
+mypy
 networkx
 numpy
 pandas
