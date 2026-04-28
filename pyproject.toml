@@ -29,6 +29,7 @@ exclude = [
     "source/package/**",
     "source/test/**",
 ]
+extraPaths = ["source/package"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["source/package/leco"]
