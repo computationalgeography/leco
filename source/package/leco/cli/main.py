@@ -3,15 +3,16 @@ import traceback
 from collections.abc import Callable
 
 
-def main_function(function: Callable) -> int:
+def main_function(function: Callable) -> Callable[..., int]:
     def wrapper(*args, **kwargs) -> int:
-        try:
-            status = function(*args, **kwargs)
-        except Exception as error:  # pylint: disable=broad-exception-caught
-            traceback.print_exception(error)
+        status = 1
 
+        try:
+            result = function(*args, **kwargs)
+            status = result if isinstance(result, int) else 0
+        except Exception as error:
+            traceback.print_exception(error)
             sys.stderr.write(f"Error occurred:\n{error!s}\n")
-            status = 1
 
         return status
 

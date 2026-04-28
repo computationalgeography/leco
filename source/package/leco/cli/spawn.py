@@ -7,6 +7,7 @@ import docopt
 
 from .. import spawn
 from ..version import __version__ as version
+from .main import main_function
 
 __all__ = ["main"]
 
@@ -41,6 +42,7 @@ def spawn_cluster(
     )
 
 
+@main_function
 def main() -> None:
     """Command line interface for spawn command."""
     command = Path(sys.argv[0]).name
