@@ -7,8 +7,9 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 
-from .animation import plot_animation
+from .animation import plot_animation, plot_first_time_step, plot_last_time_step, plot_last_time_step_bold
 from .interactive_3d import plot_3d_fig
+from .phylogenetic_tree import create_phylogeny
 from .summary import plot_summaries
 
 
@@ -57,9 +58,14 @@ def plot(
     cmap, lang_to_index = create_colormap(population.language, parameters["initialization"]["seed"])
 
     plot_summaries(data, cmap, lang_to_index)
-
-    plot_animation(data, parameters, cmap)
+    create_phylogeny(data, parameters["initialization"]["steps"])
 
     if local:
         # Creates interactive plot so only use this when running locally
         plot_3d_fig(data, cmap)
+        # Create animation plot
+        plot_animation(data, parameters, cmap, lang_to_index)
+        # Create time snaps of the animation plot
+        plot_first_time_step(data, parameters, cmap, lang_to_index)
+        plot_last_time_step(data, parameters, cmap, lang_to_index)
+        plot_last_time_step_bold(data, parameters, cmap, lang_to_index)
