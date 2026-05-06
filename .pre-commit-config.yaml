@@ -8,6 +8,24 @@ repos:
           - id: end-of-file-fixer
           - id: check-yaml
           - id: check-added-large-files
+    - repo: https://github.com/RobertCraigie/pyright-python
+      rev: v1.1.409
+      hooks:
+          - id: pyright
+            additional_dependencies:
+                [
+                    docopt,
+                    frozendict,
+                    geopandas,
+                    matplotlib,
+                    networkx,
+                    numpy,
+                    pandas,
+                    SaLib,
+                    scikit-learn,
+                    tomli_w,
+                    tqdm,
+                ]
     - repo: https://github.com/astral-sh/ruff-pre-commit
       # Ruff version.
       rev: v0.14.14
