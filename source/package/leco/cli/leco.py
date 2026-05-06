@@ -13,7 +13,6 @@ from ..cluster.feed_forward import diversify
 from ..cluster.per_step import diversify_stepwise
 from ..model.simulation import simulate
 from ..plot.create import plot
-from ..sensitivity_analysis.morris import analyze
 from ..version import __version__ as version
 from .main import main_function
 
@@ -61,15 +60,6 @@ def plot_results(arguments: dict, configuration: dict) -> None:
     plot(gpkg_file_path, configuration)
 
 
-def sensitivity_analysis(arguments: dict, configuration: dict) -> None:
-    """Run sensitivity analysis on the leco model."""
-    method = arguments["--method"]
-    distance_threshold = float(arguments["--distance"])
-    directory = create_directory(arguments["<directory>"])
-
-    analyze(method, distance_threshold, configuration, directory)
-
-
 def load_configuration(configuration_file_path: Path) -> dict:
     """Load TOML configuration file with error handling."""
     with Path.open(configuration_file_path, "rb") as configuration_file:
@@ -96,8 +86,6 @@ def usage() -> str:
             [--linkage <single|average|complete>] [--distance <distance_threshold>]
             <configuration_file> <directory>
         {command} plot [--debug] <configuration_file> <gpkg_file>
-        {command} sensitivity [--debug] [--method <all|feed_forward>]
-            [--distance <distance_threshold>] <configuration_file> <directory>
 
     Options:
     -h --help                             Show this screen and exit
@@ -117,7 +105,6 @@ def usage() -> str:
         {command} run configuration.toml results
         {command} cluster --method all --distance 0.2 configuration.toml results
         {command} plot configuration.toml population.gpkg
-        {command} sensitivity configuration.toml sensitivity_results
     """
 
 
@@ -136,7 +123,6 @@ def main() -> None:
         "run": lambda args, config: run_leco(args, config, configuration_file_path),
         "cluster": cluster_languages,
         "plot": plot_results,
-        "sensitivity": sensitivity_analysis,
     }
 
     # Determine the subcommand and call the corresponding function
