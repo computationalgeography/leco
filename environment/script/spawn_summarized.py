@@ -1,5 +1,6 @@
-"""Functions to create summary data of the leco model output."""
+"""Functions to create summary data of the leco model output for different parameter combinations."""
 
+import argparse
 import re
 from collections import defaultdict
 from pathlib import Path
@@ -18,10 +19,12 @@ PARAMETER_NAMES = [
 
 
 def parse_path_metadata(filepath: Path) -> tuple[str, dict]:
-    """Extract all parameter values and seed from a nested path like:
+    """Extract all parameter values and seed from a nested path.
+
+    Path looks like:
     speed_0.5/mutation_rate_0.01/radius_30.0/diffusion_rate_0.1/similarity_preference_0.8/seed_42/population.gpkg
 
-    Returns:
+    It returns:
         seed: the seed value as string
         params: dict of all parameter values
     """
@@ -54,7 +57,7 @@ def organize_by_params_and_seed(
     """
     scenario_dict = defaultdict(dict)
 
-    for gdf, filepath, metadata in zip(populations, gpkg_filepaths, metadata_files):
+    for gdf, filepath, metadata in zip(populations, gpkg_filepaths, metadata_files, strict=True):
         seed, params = parse_path_metadata(filepath)
         param_key = tuple(params[p] for p in PARAMETER_NAMES)
         scenario_dict[param_key][seed] = (gdf, metadata)
@@ -74,7 +77,7 @@ def organize_meta_by_params_and_seed(
     """
     scenario_dict = defaultdict(dict)
 
-    for filepath, metadata, metacluster in zip(csv_filepaths, metadata_files, metacluster_files):
+    for filepath, metadata, metacluster in zip(csv_filepaths, metadata_files, metacluster_files, strict=True):
         seed, params = parse_path_metadata(filepath)
         param_key = tuple(params[p] for p in PARAMETER_NAMES)
         scenario_dict[param_key][seed] = (metadata, metacluster)
@@ -100,7 +103,7 @@ def write_data(
 
     for param_key, seeds_dict in organized_data.items():
         # Unpack parameter combination for labelling
-        param_dict = dict(zip(PARAMETER_NAMES, param_key))
+        param_dict = dict(zip(PARAMETER_NAMES, param_key, strict=True))
         print(f"Processing params: {param_dict}")
 
         for seed, (gdf, metadata) in seeds_dict.items():
@@ -109,7 +112,16 @@ def write_data(
             number_languages = gdf.groupby("time_step")["language"].nunique().sort_index().tolist()
 
             language_speakers = (
-                gdf.groupby(["time_step", "language"])["id"].count().unstack(fill_value=0).sort_index()
+                gdf.groupby(["time_step", "language"])["id"]
+                .count()
+                .reset_index(name="speaker_count")
+                .pivot_table(
+                    index="time_step",
+                    columns="language",
+                    values="speaker_count",
+                    fill_value=0,
+                )
+                .sort_index()
             )
 
             external_changes = metadata["external_change"]
@@ -120,7 +132,7 @@ def write_data(
             for step in last_10_steps:
                 speakers_at_step = language_speakers.loc[step]
                 nonzero = speakers_at_step[speakers_at_step > 0]
-                speakers_last_10[step] = sorted(nonzero.values.tolist(), reverse=True)
+                speakers_last_10[step] = sorted(nonzero.to_numpy(), reverse=True)
 
             for i, year in enumerate(time_steps_years):
                 speakers_at_timestep = language_speakers.loc[time_steps[i]]
@@ -151,6 +163,7 @@ def write_data(
 def write_meta_data(
     organized_data: dict,
     step_to_years: int,
+    expected_seed_count: int = 5,
 ) -> pd.DataFrame:
     """Calculate summary statistics across all parameter combinations and seeds."""
     # Get the first actual dataframe to extract time steps
@@ -165,19 +178,22 @@ def write_meta_data(
 
     for param_key, seeds_dict in organized_data.items():
         # Unpack parameter combination for labelling
-        param_dict = dict(zip(PARAMETER_NAMES, param_key))
-        print(f"Processing params: {param_dict}")
+        param_dict = dict(zip(PARAMETER_NAMES, param_key, strict=True))
+
+        # Check if every parameter combination has indeed the expected number of seeds
+        if len(seeds_dict) != expected_seed_count:
+            raise ValueError(
+                f"Expected {expected_seed_count} seeds for {param_dict}, "
+                f"but found {len(seeds_dict)}: {list(seeds_dict.keys())}",
+            )
 
         for seed, (metadata, metacluster) in seeds_dict.items():
-            print(f"  seed={seed}")
-
             external_changes = metadata["external_change"]
             internal_changes = metadata["internal_change"]
             number_languages = metacluster["language_number"]
             language_speakers = metacluster["speaker_numbers"]
 
             for i, year in enumerate(time_steps_years):
-
                 """ if year < 1000:
                     continue """
 
@@ -220,7 +236,7 @@ def extract_files(gpkg_paths: list[Path]) -> tuple[list[gpd.GeoDataFrame], list[
     return populations, metadatas
 
 
-def extract_meta_files(csv_paths: list[Path]) -> list[pd.DataFrame, pd.DataFrame]:
+def extract_meta_files(csv_paths: list[Path]) -> tuple[list[pd.DataFrame], list[pd.DataFrame]]:
     """Extract the metadata files."""
     metadatas = []
     metaclusters = []
@@ -243,8 +259,8 @@ def extract_meta_files(csv_paths: list[Path]) -> list[pd.DataFrame, pd.DataFrame
         metacluster["speaker_numbers"] = metacluster["speaker_numbers"].apply(
             lambda x: np.array(
                 [v for v in str(x).strip("[]").replace(",", " ").split() if v != "..."],
-                dtype=int
-            )
+                dtype=int,
+            ),
         )
 
         metaclusters.append(metacluster)
@@ -252,10 +268,10 @@ def extract_meta_files(csv_paths: list[Path]) -> list[pd.DataFrame, pd.DataFrame
     return metadatas, metaclusters
 
 
-def process_all(base_path: Path) -> None:
+def process_all(directory_path: Path) -> None:
     """Create summarizing data of the leco model output for the nested parameter structure."""
     # Find all gpkg files in the base path
-    cluster_file_paths = list(base_path.rglob("meta_data_cluster.csv"))
+    cluster_file_paths = list(directory_path.rglob("meta_data_cluster.csv"))
 
     # Extract gpkg files and metadata files
     metadata, metaclusters = extract_meta_files(cluster_file_paths)
@@ -266,10 +282,18 @@ def process_all(base_path: Path) -> None:
     stats_df = write_meta_data(organized_data, step_to_years)
     print(stats_df)
 
-    output_path = base_path / "spawn_combined_stats.csv"
+    output_path = directory_path / "spawn_combined_stats.csv"
     stats_df.to_csv(output_path, index=False)
 
 
 if __name__ == "__main__":
-    base_path = Path("/scratch/posma002/spawn/sens_L3_5/")
-    process_all(base_path)
+    parser = argparse.ArgumentParser(
+        description="Create summary statistics from population output files.",
+    )
+    parser.add_argument(
+        "directory_path",
+        nargs="?",
+        help="Base directory that contains nested population*.gpkg files.",
+    )
+    args = parser.parse_args()
+    process_all(Path(args.directory_path))

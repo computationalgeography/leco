@@ -90,3 +90,4 @@ ignore = [
     "D103",
     "PTH120",
 ]
+"environment/script/*.py" = ["INP001"]
