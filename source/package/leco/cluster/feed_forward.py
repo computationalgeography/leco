@@ -26,6 +26,30 @@ def read_population(directory: Path, step: int) -> pd.DataFrame:
     return gpd.read_parquet(directory / file_name)
 
 
+def make_population_reader(directory: Path, chunk_size: int, time_steps: int) -> gpd.GeoDataFrame:
+    """Return a read function with a built-in cache for reading population data from geoparquet files."""
+    cache = {"chunk": None, "chunk_end": None}
+
+    def read(step: int) -> gpd.GeoDataFrame:
+        if step == 0:
+            return gpd.read_parquet(directory / "steps_0000.geoparquet")
+
+        chunk_end = ((step - 1) // chunk_size + 1) * chunk_size
+        chunk_start = chunk_end - chunk_size + 1
+
+        # Cap chunk_end at total steps in case last chunk is incomplete
+        actual_chunk_end = min(chunk_end, time_steps)
+
+        if chunk_end != cache["chunk_end"]:
+            file = directory / f"steps_{chunk_start:04d}_{actual_chunk_end:04d}.geoparquet"
+            cache["chunk"] = gpd.read_parquet(file)
+            cache["chunk_end"] = chunk_end
+
+        return cache["chunk"][cache["chunk"]["time_step"] == step].reset_index(drop=True).copy()
+
+    return read
+
+
 def agglomerative_classification(
     language_profiles: np.ndarray[int],
     distance_threshold: float,
@@ -488,11 +512,14 @@ def diversify(
     linkage: str,
     time_steps: int,
     radius: float,
+    write_interval: int,
     sensitivity: bool = False,
 ) -> None | int:
     """Cluster languages per time step based on clustering previous time step."""
     # Dataframe of the population at the initial time step
-    population_current = read_population(directory, 0)
+    read_population = make_population_reader(directory, write_interval, time_steps)
+    population_current = read_population(0)
+
     # First time_step: initialize the start languages
     languages = initialize_languages(
         population_current,
@@ -527,7 +554,7 @@ def diversify(
         convergence_counter = 0
 
         population_previous = population_current
-        population_current = read_population(directory, time_step)
+        population_current = read_population(time_step)
 
         # Determine the candidate clusters formed after splitting
         population_current, divergence_counter = find_splitting_events(

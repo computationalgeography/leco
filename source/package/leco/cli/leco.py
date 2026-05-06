@@ -15,6 +15,7 @@ from ..model.simulation import simulate
 from ..plot.create import plot
 from ..sensitivity_analysis.morris import analyze
 from ..version import __version__ as version
+from .main import main_function
 
 
 def run_leco(arguments: dict, configuration: dict, configuration_file_path: Path) -> None:
@@ -48,6 +49,7 @@ def cluster_languages(arguments: dict, configuration: dict) -> None:
             linkage,
             configuration["initialization"]["steps"],
             configuration["interaction"]["radius"],
+            configuration["initialization"]["write_interval"],
         )
     else:
         classification_by_method[method](directory, distance_threshold, linkage)
@@ -74,9 +76,9 @@ def load_configuration(configuration_file_path: Path) -> dict:
         return tomllib.load(configuration_file)
 
 
-def create_directory(directory_path: str) -> Path:
+def create_directory(directory_pathname: str) -> Path:
     """Create directory with name provided by user input."""
-    directory_path = Path(directory_path)
+    directory_path = Path(directory_pathname)
     directory_path.mkdir(parents=True, exist_ok=False)
 
     return directory_path
@@ -119,6 +121,7 @@ def usage() -> str:
     """
 
 
+@main_function
 def main() -> None:
     """Command line interface for leco model."""
     arguments = docopt.docopt(usage(), sys.argv[1:], version=version)

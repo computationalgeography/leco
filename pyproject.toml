@@ -23,6 +23,14 @@ dependencies = ["docopt"]
 [project.scripts]
 leco_model = "leco.cli.leco:main"
 
+[tool.pyright]
+exclude = [
+    # TODO: fix all issues and remove these lines
+    "source/package/**",
+    "source/test/**",
+]
+extraPaths = ["source/package"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["source/package/leco"]
 
