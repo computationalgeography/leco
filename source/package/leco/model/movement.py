@@ -2,13 +2,12 @@
 
 import geopandas as gpd
 import numpy as np
-from shapely import (
-    LineString,
-    Polygon,
-)
+import numpy.typing as npt
+from shapely import LineString
+from shapely.geometry.base import BaseGeometry
 
 
-def movement_direction(nr_agents: int, rng: np.random.default_rng) -> np.ndarray[float]:
+def movement_direction(nr_agents: int, rng: np.random.Generator) -> npt.NDArray[np.float64]:
     """Get random movement directions in radians for all agents."""
     return rng.uniform(
         0,
@@ -17,7 +16,11 @@ def movement_direction(nr_agents: int, rng: np.random.default_rng) -> np.ndarray
     )  # Get a random angle in radians between 0 and 2π for each agent
 
 
-def change_position(speed: float, angle: float, axis: str) -> np.ndarray[float]:
+def change_position(
+    speed: float,
+    angle: npt.NDArray[np.float64],
+    axis: str,
+) -> npt.NDArray[np.float64]:
     """Calculate the change in position based on speed and angle for a specified axis."""
     if axis == "x":
         return speed * np.cos(angle)  # Change in x position
@@ -27,10 +30,10 @@ def change_position(speed: float, angle: float, axis: str) -> np.ndarray[float]:
 
 
 def move_axis(
-    current_pos: np.ndarray[float],
-    delta_pos: np.ndarray[float],
-    max_pos: int,
-) -> np.ndarray[float]:
+    current_pos: npt.NDArray[np.float64],
+    delta_pos: npt.NDArray[np.float64],
+    max_pos: float,
+) -> npt.NDArray[np.float64]:
     """Move across a specified axis."""
     return np.clip(
         current_pos + delta_pos,
@@ -40,10 +43,10 @@ def move_axis(
 
 
 def find_intersecting_movements(
-    old_coordinates: gpd.GeoSeries.geometry,
-    new_coordinates: gpd.GeoSeries.geometry,
-    barrier: Polygon,
-) -> np.ndarray[bool]:
+    old_coordinates: gpd.GeoSeries,
+    new_coordinates: gpd.GeoSeries,
+    barrier: BaseGeometry,
+) -> npt.NDArray[np.bool]:
     """Find which agent movements intersect with the barrier."""
     # Create movement lines from old to new positions
     movement_lines = gpd.GeoSeries(
@@ -59,12 +62,12 @@ def find_intersecting_movements(
 
 
 def movement_across_barrier(
-    position: gpd.GeoSeries.geometry,
-    new_position: gpd.GeoSeries.geometry,
-    barrier: Polygon,
+    position: gpd.GeoSeries,
+    new_position: gpd.GeoSeries,
+    barrier: BaseGeometry,
     impermeability: float,
-    rng: np.random.default_rng,
-) -> gpd.GeoSeries.geometry:
+    rng: np.random.Generator,
+) -> gpd.GeoSeries:
     """Handle movement across a barrier by stopping agents at the barrier."""
     # Check if the barrier impermeability falls within the range of [0,1]
     if impermeability < 0 or impermeability > 1:
@@ -97,36 +100,49 @@ def movement_across_barrier(
     impeded_y = position.y.iloc[impeded_agents].values
 
     # Impeded agents stay at their old position
-    new_position[impeded_agents] = gpd.points_from_xy(impeded_x, impeded_y)
+    updated_position = new_position.copy()
+    updated_position.iloc[impeded_agents] = gpd.GeoSeries(
+        gpd.points_from_xy(impeded_x, impeded_y),
+        index=updated_position.iloc[impeded_agents].index,
+        crs=updated_position.crs,
+    )
 
-    return new_position
+    return updated_position
 
 
 def move(
-    position: gpd.GeoSeries.geometry,
-    barrier: Polygon | None,
+    position: gpd.GeoSeries,
+    barrier: BaseGeometry | None,
     impermeability: float,
     speed: float,
-    space: list[float, float],
-    rng: np.random.default_rng,
-) -> gpd.GeoSeries.geometry:
+    space: list[float],
+    rng: np.random.Generator,
+) -> gpd.GeoSeries:
     """Move agents across a continuous space with a certain speed."""
     angle = movement_direction(len(position), rng)  # Get random angles for all agents
+
     new_x = move_axis(
-        position.x.values,
+        position.x.to_numpy(dtype=np.float64),
         change_position(speed, angle, "x"),
         space[0],
     )  # Calculate the change in position along x axis and move
+
     new_y = move_axis(
-        position.y.values,
+        position.y.to_numpy(dtype=np.float64),
         change_position(speed, angle, "y"),
         space[1],
     )  # Calculate the change in position along y axis and move
-    new_position = gpd.points_from_xy(new_x, new_y)
+
+    new_position = gpd.GeoSeries(
+        gpd.points_from_xy(new_x, new_y),
+        index=position.index,
+        crs=position.crs,
+    )
 
     # If there is no barrier or no impermeability from the barrier, return the new positions
     if barrier is None or impermeability == 0:
         return new_position
+
     return movement_across_barrier(
         position,
         new_position,

@@ -4,12 +4,13 @@ import logging
 
 import geopandas as gpd
 import numpy as np
+import numpy.typing as npt
 from scipy.spatial import KDTree
 
 logger = logging.getLogger(__name__)
 
 
-def nearest_neighbors(positions: np.ndarray[float], radius: float) -> list[np.ndarray[int]]:
+def nearest_neighbors(positions: npt.NDArray[np.float64], radius: float) -> list[npt.NDArray[np.int64]]:
     """Find all neighboring agents within a radius."""
     # Build a K-Dimensional tree (spatial index)
     positions_kdt = KDTree(positions)
@@ -17,20 +18,23 @@ def nearest_neighbors(positions: np.ndarray[float], radius: float) -> list[np.nd
     # Find all neighbors within a radius around an agent
     neighbors = positions_kdt.query_ball_point(positions, r=radius)
     # Remove self and store neighbors of every agent in list format
-    return [[n for n in neighbor_list if n != i] for i, neighbor_list in enumerate(neighbors)]
+    return [
+        np.array([n for n in neighbor_list if n != i], dtype=np.int64)
+        for i, neighbor_list in enumerate(neighbors)
+    ]
 
 
 def select_interacting_partners(
-    agent_profile: np.ndarray[int],
-    neighbors: np.ndarray[int],
-    neighbors_profiles: np.ndarray[int],
+    agent_profile: npt.NDArray[np.int64],
+    neighbors: npt.NDArray[np.int64],
+    neighbors_profiles: npt.NDArray[np.int64],
     partner_proportion: float,
     similarity_preference: float,
-    rng: np.random.default_rng,
-) -> np.ndarray[int]:
+    rng: np.random.Generator,
+) -> npt.NDArray[np.int64]:
     """Select proportion / fixed number of neighbors an agent interacts with.
 
-    Neighbor weights are calculated following under positive similarity preference s:
+    Neighbor weights are calculated under positive similarity preference s:
         weights = (1 - s) * uniform_weights + s * similarity_weights
     Or a negative similarity preference s:
         weights = (1 + s) * uniform_weights - s * dissimilarity_weights
@@ -62,7 +66,7 @@ def select_interacting_partners(
             -similarity_preference
         ) * dissimilarity_weights
     else:
-        logger.error("Error: similarity preference should be within the range of [-1.0, 1.0]")
+        raise ValueError("Error: similarity preference should be within the range of [-1.0, 1.0]")
 
     # Avoid weights of zero, so rng.choice always select number_interaction_partners
     epsilon = 1e-8
@@ -79,12 +83,12 @@ def select_interacting_partners(
 
 
 def interact(
-    language_profiles: np.ndarray[int],
+    language_profiles: npt.NDArray[np.int64],
     interact_attributes: dict[str, float],
     profile_length: int,
-    positions: gpd.GeoDataFrame.geometry,
-    rng: np.random.default_rng,
-) -> list[np.ndarray[int], int]:
+    positions: gpd.GeoSeries,
+    rng: np.random.Generator,
+) -> tuple[list[npt.NDArray[np.int64]], int]:
     """Interaction between agents whereby linguistic diffusion occurs."""
     # Get neighbors for all agents within a radius of int_radius
     neighbors_list = nearest_neighbors(positions.get_coordinates().to_numpy(), interact_attributes["radius"])

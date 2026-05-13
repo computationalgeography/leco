@@ -30,6 +30,7 @@ exclude = [
     "source/test/**",
 ]
 extraPaths = ["source/package"]
+typeCheckingMode = "basic"
 
 [tool.hatch.build.targets.wheel]
 packages = ["source/package/leco"]
@@ -90,4 +91,5 @@ ignore = [
     "D103",
     "PTH120",
 ]
+# Ignore __init__.py as part of package for the environment scripts
 "environment/script/*.py" = ["INP001"]

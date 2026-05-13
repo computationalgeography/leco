@@ -4,19 +4,20 @@ import logging
 
 import geopandas as gpd
 import numpy as np
+import numpy.typing as npt
 from shapely import (
-    Polygon,
     box,
 )
+from shapely.geometry.base import BaseGeometry
 
 logger = logging.getLogger(__name__)
 
 
 def initialize_barrier(
-    space: list[float, float],
-    bar_x: list[float, float],
-    bar_y: list[float, float],
-) -> Polygon:
+    space: list[float],
+    bar_x: list[float],
+    bar_y: list[float],
+) -> BaseGeometry:
     """Initialize a barrier in continuous space."""
     # Create the barrier as a shapely Polygon
     barrier = box(bar_x[0], bar_y[0], bar_x[1], bar_y[1])
@@ -38,23 +39,25 @@ def initialize_coordinates(
     min_coordinates: float,
     max_coordinates: float,
     nr_agents: int,
-    rng: np.random.default_rng,
-) -> np.ndarray[float]:
+    rng: np.random.Generator,
+) -> npt.NDArray[np.float64]:
     """Randomly initialize coordinates along one axis within the specified range."""
     return rng.uniform(low=min_coordinates, high=max_coordinates, size=nr_agents)
 
 
 def initialize_positions(
     space: list[float],
-    subset_area: dict[str, bool | list[float]],
+    subset_area_present: bool,
+    subset_x_extent: list[float],
+    subset_y_extent: list[float],
     nr_agents: int,
-    rng: np.random.default_rng,
-) -> tuple[np.ndarray[float], np.ndarray[float]]:
+    rng: np.random.Generator,
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     """Initialize coordinates for the number of start agents within the specified initialization area."""
-    if subset_area["present"] is True:
+    if subset_area_present is True:
         # If a initialization area is specified, use those coordinates as the range
-        x = initialize_coordinates(subset_area["x_extent"][0], subset_area["x_extent"][1], nr_agents, rng)
-        y = initialize_coordinates(subset_area["y_extent"][0], subset_area["y_extent"][1], nr_agents, rng)
+        x = initialize_coordinates(subset_x_extent[0], subset_x_extent[1], nr_agents, rng)
+        y = initialize_coordinates(subset_y_extent[0], subset_y_extent[1], nr_agents, rng)
         return x, y
     # Agents can be initialized across the entire space
     x = initialize_coordinates(0.0, space[0], nr_agents, rng)
@@ -65,19 +68,19 @@ def initialize_positions(
 def initialize_language_profile(
     nr_meanings: int,
     nr_forms: int,
-    rng: np.random.default_rng,
-) -> np.ndarray[int]:
+    rng: np.random.Generator,
+) -> npt.NDArray[np.int64]:
     """Randomly initialize a language profile with size 'nr_meanings'."""
     # Each meaning is randomly assigned a form
     return rng.integers(0, nr_forms, nr_meanings)
 
 
 def initialize_spatial_profile_assignments(
-    x: np.ndarray,
-    y: np.ndarray,
+    x: npt.NDArray[np.float64],
+    y: npt.NDArray[np.float64],
     nr_languages: int,
-    rng: np.random.default_rng,
-) -> np.ndarray:
+    rng: np.random.Generator,
+) -> npt.NDArray[np.int64]:
     """Assign language-profile indices to agents so that profiles are spatially grouped.
 
     Voronoi partitioning: pick `nr_languages` seed agents and assign every agent to the nearest seed
@@ -99,15 +102,41 @@ def initialize_spatial_profile_assignments(
     return np.argmin(sq_dist, axis=1).astype(int)
 
 
+def initialize_spatial_cross_distribution(
+    x: npt.NDArray[np.float64],
+    y: npt.NDArray[np.float64],
+    x_size: float,
+    y_size: float,
+) -> npt.NDArray[np.int64]:
+    """Assign language-profile indices to agents so that profiles are spatially grouped.
+
+    In cross manner: four even-sized squares. Not ready for subset though.
+    """
+    coordinates = np.column_stack([x, y])
+
+    # Assign quadrant index (0-3) based on position relative to midpoint
+    # Quadrant layout:
+    #   2 | 3
+    #   -----
+    #   0 | 1
+    return np.where(
+        coordinates[:, 1] < (y_size / 2),  # bottom half
+        np.where(coordinates[:, 0] < (x_size / 2), 0, 1),  # bottom-left=0, bottom-right=1
+        np.where(coordinates[:, 0] < (x_size / 2), 2, 3),  # top-left=2,    top-right=3
+    )
+
+
 def initialize_population(
     nr_agents: int,
     space: list[float],
-    subset_area: dict[str, bool | list[float]],
+    subset_area_present: bool,
+    subset_x_extent: list[float],
+    subset_y_extent: list[float],
     nr_languages: int,
     nr_forms: int,
     nr_meanings: int,
-    rng: np.random.default_rng,
-) -> list[gpd.GeoDataFrame, int]:
+    rng: np.random.Generator,
+) -> tuple[gpd.GeoDataFrame, int]:
     """Return a data frame containing for each agent the following properties."""
     """
     - id
@@ -118,7 +147,7 @@ def initialize_population(
     ids = list(range(1, nr_agents + 1))  # ids from 1 to number of agents
 
     # Assign positions
-    x, y = initialize_positions(space, subset_area, nr_agents, rng)
+    x, y = initialize_positions(space, subset_area_present, subset_x_extent, subset_y_extent, nr_agents, rng)
 
     # Assign language profiles, each profile represented by a string of integers
     # For each agent:
@@ -130,10 +159,13 @@ def initialize_population(
 
     # Assign language profiles to agents
     # If there are multiple languages initialized, assign the language profiles spatially grouped.
-    if nr_languages > 1:
-        profile_assignments = initialize_spatial_profile_assignments(x, y, nr_languages, rng)
-    else:
+    if nr_languages == 1:
         profile_assignments = np.zeros(nr_agents, dtype=int)
+    elif nr_languages == 4:
+        # Use the spatial cross distribution
+        profile_assignments = initialize_spatial_cross_distribution(x, y, space[0], space[1])
+    else:
+        profile_assignments = initialize_spatial_profile_assignments(x, y, nr_languages, rng)
 
     # Assign the start profiles to the agents
     language_profile = [start_profiles[assignment].copy() for assignment in profile_assignments]

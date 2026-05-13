@@ -27,7 +27,7 @@ def effective_growth(r: float, carrying_capacity: int, nr_agents: int) -> float:
 
 
 def set_birth_rate(
-    pop_dynamics: dict[str, float | bool | int],
+    pop_dynamics: dict,
     init_population: int,
     nr_agents: int,
     time_step: int,
@@ -57,8 +57,8 @@ def population_dynamics(
     init_population: int,
     time_step: int,
     max_id: int,
-    rng: np.random.default_rng,
-) -> gpd.GeoDataFrame:
+    rng: np.random.Generator,
+) -> tuple[gpd.GeoDataFrame, int]:
     """Update population based on death and birth rates."""
     nr_agents = len(population)
 
@@ -69,8 +69,12 @@ def population_dynamics(
         p=[1 - pop_dynamics["death_rate"], pop_dynamics["death_rate"]],
     )
 
-    # Remove the agents that die while remaining consecutive row count number
-    survivors = population[~death_masks].copy().reset_index(drop=True)
+    # Remove the agents that die while remaining consecutive row count number in GeoDataFrame format
+    survivors = gpd.GeoDataFrame(
+        population[~death_masks].copy().reset_index(drop=True),
+        geometry=population.geometry.name,
+        crs=population.crs,
+    )
 
     # Determine the current birth rate, which may depend on logistic growth
     current_birth_rate = set_birth_rate(
@@ -94,18 +98,23 @@ def population_dynamics(
             max_id + 1,
             max_id + 1 + num_births,
         )  # Generate new unique IDs for offspring
-        max_id = max(new_ids)  # Update the maximum ID
+        max_id = int(new_ids.max())  # Update the maximum ID
 
         # Get parent indices for births
         birth_indices = np.where(birth_masks)[0]
 
         # Create offspring by taking parent data and updating IDs
-        offspring = population.iloc[birth_indices].copy()
-        offspring["parent_id"] = population.iloc[birth_indices]["id"].to_numpy()
+        offspring = survivors.iloc[birth_indices].copy()
+        offspring["parent_id"] = survivors.iloc[birth_indices]["id"].to_numpy()
         offspring["id"] = new_ids
 
-        # Combine survivors with offspring
-        new_population = pd.concat([survivors, offspring], ignore_index=True)
+        # Combine survivors with offspring and preserve GeoDataFrame typing/metadata
+        combined = pd.concat([survivors, offspring], ignore_index=True)
+        new_population = gpd.GeoDataFrame(
+            combined,
+            geometry=survivors.geometry.name,
+            crs=survivors.crs,
+        )
     else:
         new_population = survivors
 
