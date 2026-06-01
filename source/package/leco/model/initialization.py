@@ -1,6 +1,7 @@
 """Functions for initialization of the agent population and space."""
 
 import logging
+from pathlib import Path
 
 import geopandas as gpd
 import numpy as np
@@ -110,19 +111,19 @@ def initialize_spatial_cross_distribution(
 ) -> npt.NDArray[np.int64]:
     """Assign language-profile indices to agents so that profiles are spatially grouped.
 
-    In cross manner: four even-sized squares. Not ready for subset though.
+    In cross manner: four even-sized squares.
     """
     coordinates = np.column_stack([x, y])
 
     # Assign quadrant index (0-3) based on position relative to midpoint
     # Quadrant layout:
-    #   2 | 3
-    #   -----
     #   0 | 1
+    #   -----
+    #   2 | 3
     return np.where(
         coordinates[:, 1] < (y_size / 2),  # bottom half
-        np.where(coordinates[:, 0] < (x_size / 2), 0, 1),  # bottom-left=0, bottom-right=1
-        np.where(coordinates[:, 0] < (x_size / 2), 2, 3),  # top-left=2,    top-right=3
+        np.where(coordinates[:, 0] < (x_size / 2), 2, 3),  # bottom-left=2, bottom-right=3
+        np.where(coordinates[:, 0] < (x_size / 2), 0, 1),  # top-left=0,    top-right=1
     )
 
 
@@ -187,3 +188,15 @@ def initialize_population(
         ),
         max_id,
     )
+
+
+def initialize_intermediate_start(file_path: Path, time_step: int) -> tuple[gpd.GeoDataFrame, int]:
+    """Initialize population from an intermediate point."""
+    populations = gpd.read_parquet(file_path)
+
+    population = populations.loc[populations["time_step"] == time_step, :]
+    if population.empty:
+        raise ValueError(f"No population found for time_step {time_step}")
+    max_id = max(population["id"])
+
+    return population, max_id

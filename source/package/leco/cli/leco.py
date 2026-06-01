@@ -17,13 +17,36 @@ from ..version import __version__ as version
 from .main import main_function
 
 
-def run_leco(arguments: dict, configuration: dict, configuration_file_path: Path) -> None:
+def check_intermediate_start(intermediate_start: Path, intermediate_step: int) -> None:
+    """Check if intermediate_start file contains the step of interest."""
+    _, steps_range = Path(intermediate_start).stem.split("steps_", 1)
+    start, end = map(int, steps_range.split("_"))
+    if not (start <= intermediate_step <= end):
+        raise ValueError(
+            f"intermediate_step {intermediate_step} not in range [{start}, {end}] "
+            f"of '{Path(intermediate_start).name}'.",
+        )
+
+
+def run_leco(
+    arguments: dict,
+    configuration: dict,
+    configuration_file_path: Path,
+) -> None:
     """Run the leco model with specified configuration."""
     directory = create_directory(arguments["<directory>"])
     # Store a copy of the configuration file for documentation and reproducibility
     shutil.copy2(configuration_file_path, directory / "configuration.toml")
+
+    intermediate_start = arguments["--start_geoparquet"]
+    intermediate_step = int(arguments["--intermediate_step"]) if arguments["--intermediate_step"] else 0
+
+    # Check if intermediate_start file contains the step of interest
+    if intermediate_start is not None:
+        check_intermediate_start(intermediate_start, intermediate_step)
+
     # Run the leco model
-    simulate(configuration, directory)
+    simulate(configuration, directory, intermediate_start, intermediate_step)
 
 
 def cluster_languages(arguments: dict, configuration: dict) -> None:
@@ -49,6 +72,8 @@ def cluster_languages(arguments: dict, configuration: dict) -> None:
             configuration["initialization"]["steps"],
             configuration["interaction"]["radius"],
             configuration["initialization"]["write_interval"],
+            arguments["--start_gpkg"],
+            int(arguments["--intermediate_step"]) if arguments["--intermediate_step"] else 0,
         )
     else:
         classification_by_method[method](directory, distance_threshold, linkage)
@@ -81,25 +106,30 @@ def usage() -> str:
     Run leco model
 
     Usage:
-        {command} run [--debug] <configuration_file> <directory>
+        {command} run [--debug] [--start_geoparquet <geoparquet_file>] [--intermediate_step <step>]
+            <configuration_file> <directory>
         {command} cluster [--debug] [--method <all|feed_forward|step>]
             [--linkage <single|average|complete>] [--distance <distance_threshold>]
+            [--start_gpkg <gpkg_file>] [--intermediate_step <step>]
             <configuration_file> <directory>
         {command} plot [--debug] <configuration_file> <gpkg_file>
 
     Options:
-    -h --help                             Show this screen and exit
-    --version                             Show version and exit
-    <configuration_file>                  Path to a TOML configuration file
-    --debug                               Enable debug logging
-    --distance <distance_threshold>       Distance threshold to set clusters
-                                            [default: 0.3]
-    <gpkg_file>                           Path to a gpkg file after clustering
-    <directory>                           Directory to store/read the output
-    --linkage <single|average|complete>   Clustering linkage to use
-                                            [default: average]
-    --method <all|feed_forward|step>      Clustering method to use
-                                            [default: feed_forward]
+    -h --help                               Show this screen and exit
+    --version                               Show version and exit
+    <configuration_file>                    Path to a TOML configuration file
+    --debug                                 Enable debug logging
+    <directory>                             Directory to store/read the output
+    --distance <distance_threshold>         Distance threshold to set clusters
+                                              [default: 0.3]
+    <gpkg_file>                             Path to a gpkg file after clustering
+    --start_gpkg <gpkg_file>                Path to file with intermediate population configuration
+    --start_geoparquet <geoparquet_file>    Path to file with intermediate population configuration
+    --intermediate_step <step>              Time step in the intermediate geoparquet_file to start on
+    --linkage <single|average|complete>     Clustering linkage to use
+                                              [default: average]
+    --method <all|feed_forward|step>        Clustering method to use
+                                              [default: feed_forward]
 
     Typical workflow:
         {command} run configuration.toml results

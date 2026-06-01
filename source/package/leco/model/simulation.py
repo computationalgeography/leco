@@ -8,7 +8,7 @@ import numpy.typing as npt
 import pandas as pd
 from tqdm import tqdm
 
-from .initialization import initialize_barrier, initialize_population
+from .initialization import initialize_barrier, initialize_intermediate_start, initialize_population
 from .interaction import interact
 from .movement import move
 from .population_dynamics import population_dynamics
@@ -44,7 +44,12 @@ def mutate_profile(
     return list(mutated_profiles), mutations_count
 
 
-def simulate(p: dict, directory: Path) -> None | float:
+def simulate(
+    p: dict,
+    directory: Path,
+    intermediate_start: Path | None,
+    intermediate_step: int | None,
+) -> None:
     """Run the LECo model of Linguistic Evolutionary COmputations."""
     # Initialize seed
     rng = np.random.default_rng(p["initialization"]["seed"])
@@ -64,17 +69,22 @@ def simulate(p: dict, directory: Path) -> None | float:
         )
 
     # Initialize a population of agents
-    population, max_id = initialize_population(
-        p["initialization"]["agents"],
-        p["space"]["shape"],
-        p["initialization_subset_area"]["present"],
-        p["initialization_subset_area"]["x_extent"],
-        p["initialization_subset_area"]["y_extent"],
-        p["initialization"]["nr_start_languages"],
-        p["language"]["forms"],
-        p["language"]["meanings"],
-        rng,
-    )
+    if intermediate_start is not None and intermediate_step is not None:
+        # Start at intermediate point after warm-up run
+        population, max_id = initialize_intermediate_start(intermediate_start, intermediate_step)
+    else:
+        # Start from scratch
+        population, max_id = initialize_population(
+            p["initialization"]["agents"],
+            p["space"]["shape"],
+            p["initialization_subset_area"]["present"],
+            p["initialization_subset_area"]["x_extent"],
+            p["initialization_subset_area"]["y_extent"],
+            p["initialization"]["nr_start_languages"],
+            p["language"]["forms"],
+            p["language"]["meanings"],
+            rng,
+        )
 
     # Create a dataframe to store data on the origin of changes to the language profile
     meta_data = pd.DataFrame(

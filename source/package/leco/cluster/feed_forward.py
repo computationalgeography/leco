@@ -5,59 +5,71 @@ Classification based on evolutionary diversification processes.
 
 import heapq
 import logging
+import sys
+from collections.abc import Callable
 from pathlib import Path
+from typing import cast
 
 import geopandas as gpd
 import networkx as nx
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 from scipy.cluster.hierarchy import linkage
 from scipy.spatial.distance import cdist
 from sklearn.cluster import AgglomerativeClustering
+from sklearn.neighbors import KDTree
 from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
 
 
-def read_population(directory: Path, step: int) -> pd.DataFrame:
+def read_population(directory: Path, step: int) -> gpd.GeoDataFrame:
     """Read in the population data at a certain time step."""
     file_name = f"output{step:03d}.geoparquet"
 
     return gpd.read_parquet(directory / file_name)
 
 
-def make_population_reader(directory: Path, chunk_size: int, time_steps: int) -> gpd.GeoDataFrame:
+def make_population_reader(
+    directory: Path,
+    chunk_size: int,
+    time_steps: int,
+) -> Callable[[int], gpd.GeoDataFrame]:
     """Return a read function with a built-in cache for reading population data from geoparquet files."""
-    cache = {"chunk": None, "chunk_end": None}
+    chunk: gpd.GeoDataFrame | None = None
+    chunk_end: int | None = None
 
     def read(step: int) -> gpd.GeoDataFrame:
+        nonlocal chunk, chunk_end  # Required to modify the outer variables
+
         if step == 0:
-            return gpd.read_parquet(directory / "steps_0000.geoparquet")
+            return cast("gpd.GeoDataFrame", gpd.read_parquet(directory / "steps_0000.geoparquet"))
 
-        chunk_end = ((step - 1) // chunk_size + 1) * chunk_size
-        chunk_start = chunk_end - chunk_size + 1
+        new_chunk_end = ((step - 1) // chunk_size + 1) * chunk_size
+        chunk_start = new_chunk_end - chunk_size + 1
+        actual_chunk_end = min(new_chunk_end, time_steps)
 
-        # Cap chunk_end at total steps in case last chunk is incomplete
-        actual_chunk_end = min(chunk_end, time_steps)
-
-        if chunk_end != cache["chunk_end"]:
+        if new_chunk_end != chunk_end:
             file = directory / f"steps_{chunk_start:04d}_{actual_chunk_end:04d}.geoparquet"
-            cache["chunk"] = gpd.read_parquet(file)
-            cache["chunk_end"] = chunk_end
+            chunk = cast("gpd.GeoDataFrame", gpd.read_parquet(file))
+            chunk_end = new_chunk_end
 
-        return cache["chunk"][cache["chunk"]["time_step"] == step].reset_index(drop=True).copy()
+        assert chunk is not None  # Ensure chunk is not None
+        result = chunk[chunk["time_step"] == step].reset_index(drop=True).copy()
+        return cast("gpd.GeoDataFrame", result)
 
     return read
 
 
 def agglomerative_classification(
-    language_profiles: np.ndarray[int],
+    language_profiles: npt.NDArray[np.int64],
     distance_threshold: float,
     linkage: str,
-) -> np.ndarray[int]:
+) -> npt.NDArray[np.int64]:
     """Group profiles into clusters based on distance threshold using hierarchical clustering."""
     clustering = AgglomerativeClustering(
-        n_clusters=None,
+        n_clusters=None,  # type: ignore[arg-type]
         distance_threshold=distance_threshold,
         metric="hamming",
         linkage=linkage,
@@ -70,16 +82,41 @@ def initialize_languages(
     start_population: gpd.GeoDataFrame,
     distance_threshold: float,
     linkage: str,
-) -> np.ndarray[int]:
+) -> npt.NDArray[np.int_]:
     """Initialize languages for the first time_step based on distance threshold."""
-    language_profiles = np.stack(start_population["language_profile"])
+    language_profiles = np.stack(start_population["language_profile"].to_list())
+
     if len(start_population) == 1:
         return np.array([0])
 
-    return agglomerative_classification(language_profiles, distance_threshold, linkage)
+    language_classification = agglomerative_classification(language_profiles, distance_threshold, linkage)
+
+    # Initialize the languages in consistent order when initial language number is four
+    if len(np.unique(language_classification)) == 4:
+        coordinates = np.stack([start_population.geometry.x, start_population.geometry.y], axis=1)
+        x_mid = coordinates[:, 0].mean()
+        y_mid = coordinates[:, 1].mean()
+        # Assign quadrant index (0-3) based on position relative to midpoint
+        # Quadrant layout:
+        #   0 | 1
+        #   -----
+        #   2 | 3
+        quadrants = np.where(
+            coordinates[:, 1] >= y_mid,  # top half
+            np.where(coordinates[:, 0] < x_mid, 0, 1),  # top-left = 0, top-right = 1
+            np.where(coordinates[:, 0] < x_mid, 2, 3),  # bottom-left = 2, bottom-right = 3
+        )
+        new_labels = np.empty_like(language_classification)
+        for cluster_id in np.unique(language_classification):
+            mask = language_classification == cluster_id
+            majority_quadrant = int(np.bincount(quadrants[mask]).argmax())
+            new_labels[mask] = majority_quadrant
+        return new_labels
+
+    return language_classification
 
 
-def find_neighboring_clusters(current_step: gpd.GeoDataFrame, radius: int) -> dict:
+def find_neighboring_clusters(current_step: gpd.GeoDataFrame, radius: float) -> dict:
     """Find all neighboring clusters within radius."""
     n_clusters = len(current_step["candidate_language"].unique())
 
@@ -100,11 +137,14 @@ def find_neighboring_clusters(current_step: gpd.GeoDataFrame, radius: int) -> di
 
     # Perform a spatial join to find all clusters that intersect with each other
     # For every cluster (left), you get all clusters (right) whose geometry intersects it
-    neighbors = gpd.sjoin(
-        clusters,
-        clusters.set_geometry("geometry"),
-        predicate="intersects",
-        how="left",
+    neighbors = cast(
+        "pd.DataFrame",
+        gpd.sjoin(
+            clusters,
+            clusters.set_geometry("geometry"),
+            predicate="intersects",
+            how="left",
+        ),
     )
 
     # Remove self-intersections
@@ -112,9 +152,10 @@ def find_neighboring_clusters(current_step: gpd.GeoDataFrame, radius: int) -> di
 
     # Exclude neighbors that just split from the same previous language
     neighbors = neighbors[neighbors.previous_language_left != neighbors.previous_language_right]
+    neighbors = cast("pd.DataFrame", neighbors)  # re-cast after boolean indexing
 
     # Drop any nan neighbor ids (unmatched left-join rows)
-    neighbors = neighbors.dropna(subset=["candidate_language_right"])
+    neighbors = neighbors[neighbors["candidate_language_right"].notna()]
 
     # Group by the left cluster and get the list of right clusters for each left cluster
     return neighbors.groupby("candidate_language_left")["candidate_language_right"].apply(list).to_dict()
@@ -134,11 +175,13 @@ def find_splitting_events(
     candidate_language_id = 0
 
     # Map for each agent id the language of the previous step
-    previous_lang_by_id = previous_step.set_index("id")["language"]
+    previous_lang_by_id = cast("pd.Series", previous_step.set_index("id")["language"])
 
     # Set the previous language column of the current step to the language of the previous step
     # for corresponding agents
-    current_step["previous_language"] = current_step["id"].map(previous_lang_by_id).fillna(-1).astype(int)
+    current_step["previous_language"] = (
+        current_step["id"].replace(previous_lang_by_id.to_dict()).fillna(-1).astype(int)
+    )
 
     # For all newborns, set the previous language to the previous language of the parent
     newborn_mask = current_step["previous_language"] == -1
@@ -176,10 +219,9 @@ def find_splitting_events(
         current_step.loc[idx_arr, "candidate_language"] = assigned_ids[inverse]
         candidate_language_id += len(unique_labels)
 
-        # Update divergence_counter if a language split has taken place
-        # irrespective of how many new clusters arose
+        # Update divergence_counter with the number of splitted candidate clusters
         if len(unique_labels) > 1:
-            divergence_counter += 1
+            divergence_counter += len(unique_labels) - 1
 
     return current_step, divergence_counter
 
@@ -192,7 +234,7 @@ def find_merging_events(
     convergence_counter: int,
 ) -> tuple[gpd.GeoDataFrame, int]:
     """Determine language convergence of candidate languages due to linguistic diffusion."""
-    cluster_ids = current_step["candidate_language"].unique()
+    cluster_ids = np.unique(current_step["candidate_language"].to_numpy(dtype=np.int64))
 
     # No merges have occurred when there is only one candidate cluster
     if len(cluster_ids) <= 1:
@@ -231,8 +273,8 @@ def find_merging_events(
 
 def find_merges_network(
     current_step: gpd.GeoDataFrame,
-    cluster_ids: np.ndarray[int],
-    cluster_profiles: dict[int, np.ndarray],
+    cluster_ids: npt.NDArray[np.int64],
+    cluster_profiles: dict[int, npt.NDArray[np.int64]],
     all_neighbors: dict[int, list[int]],
     distance_threshold: float,
     convergence_counter: int,
@@ -277,13 +319,13 @@ def find_merges_network(
 
 def compute_neighbor_distances(
     all_neighbors: dict[int, list[int]],
-    cluster_ids: np.ndarray[int],
+    cluster_ids: npt.NDArray[np.int64],
     cluster_profiles: dict[int, np.ndarray],
     distance_threshold: float,
-    distance_matrix: np.ndarray[float],
-    is_neighbor: np.ndarray[bool],
+    distance_matrix: npt.NDArray[np.float64],
+    is_neighbor: npt.NDArray[np.bool],
     heap: list[tuple[float, int, int]],
-) -> tuple[np.ndarray, np.ndarray, list]:
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.bool], list]:
     """Compute the distances between all neighboring candidate clusters.
 
     Return a distance matrix, a neighbor track matrix and a heap.
@@ -331,8 +373,10 @@ def assign_merge_cluster_ids(
     for i in active:
         members = super_nodes[i]
         if len(members) > 1:
-            current_step.loc[current_step["candidate_language"].isin(members), "candidate_language"] = next(
-                iter(members),
+            current_step.loc[current_step["candidate_language"].isin(list(members)), "candidate_language"] = (
+                next(
+                    iter(members),
+                )
             )
             convergence_counter += 1
 
@@ -341,8 +385,8 @@ def assign_merge_cluster_ids(
 
 def find_merges_distance_matrix(
     current_step: gpd.GeoDataFrame,
-    cluster_ids: np.ndarray[int],
-    cluster_profiles: dict[int, np.ndarray],
+    cluster_ids: npt.NDArray[np.int64],
+    cluster_profiles: dict[int, npt.NDArray[np.int64]],
     all_neighbors: dict[int, list[int]],
     distance_threshold: float,
     convergence_counter: int,
@@ -461,20 +505,28 @@ def assign_languages(
     current_step["language"] = -1
     # Count number of speakers per (candidate_language, previous_language) pair
     contribution = (
-        current_step.groupby(["candidate_language", "previous_language"]).size().rename("count").reset_index()
+        current_step.groupby(["candidate_language", "previous_language"])
+        .size()
+        .to_frame("count")
+        .reset_index()
     )
-
     # Assign per candidate cluster the previous language that contributes the most speakers
-    candidate_to_language = (
+    candidate_to_language = cast(
+        "pd.Series",
         contribution.sort_values("count", ascending=False)
         .drop_duplicates("candidate_language")
-        .set_index("candidate_language")["previous_language"]
+        .set_index("candidate_language")["previous_language"],
+    )
+    # Add column in contribution with the dominant, most common previous language per cluster
+    contribution["dominant_language"] = contribution["candidate_language"].map(
+        candidate_to_language.to_dict(),  # type: ignore[arg-type]
     )
 
-    # Add column in contribution with the dominant, most common previous language per cluster
-    contribution["dominant_language"] = contribution["candidate_language"].map(candidate_to_language)
     # Select per candidate cluster the dominant language
-    winning = contribution[contribution["dominant_language"] == contribution["previous_language"]]
+    winning = cast(
+        "pd.DataFrame",
+        contribution[contribution["dominant_language"] == contribution["previous_language"]],
+    )
 
     # Assign per previous language the most common candidate cluster
     # from the candidate clusters that have this previous language as most common
@@ -485,7 +537,7 @@ def assign_languages(
     )
 
     # For every previous language map the winning cluster
-    language_map = (
+    language_map: dict[int, int] = (
         language_to_cluster.reset_index()
         .rename(columns={"previous_language": "language", "candidate_language": "cluster"})
         .set_index("cluster")["language"]
@@ -501,9 +553,48 @@ def assign_languages(
     max_language_id += len(unassigned)
 
     # Assign language ids to dataframe
-    current_step["language"] = current_step["candidate_language"].map(language_map).astype(int)
+    current_step["language"] = current_step["candidate_language"].map(language_map).astype(int)  # type: ignore[arg-type]
 
     return current_step, max_language_id
+
+
+def nncor_discrete(
+    population: gpd.GeoDataFrame,
+    k: int = 1,
+) -> dict[str, float]:
+    """Nearest-neighbour equality index for categorical marks.
+
+    Returns unnormalised and normalised versions.
+    """
+    coords = np.column_stack(
+        (
+            population.geometry.x.to_numpy(dtype=np.float64),
+            population.geometry.y.to_numpy(dtype=np.float64),
+        ),
+    )
+    labels = population["language"].to_numpy(dtype=np.int_)
+    tree = KDTree(coords)
+    # k+1 because the point itself is included
+    _dist, idx = tree.query(coords, k=k + 1)
+    nearestneighbor_idx = idx[:, k]  # k-th nearest neighbour
+
+    nearestneighbor_labels = labels[nearestneighbor_idx]
+
+    # Unnormalised: P[M == M*]
+    unnormalised = np.mean(labels == nearestneighbor_labels)
+
+    # Null expectation: sum(p_c^2) = Simpson index
+    props = np.unique(labels, return_counts=True)[1] / len(labels)
+    expected = np.sum(props**2)
+
+    # Normalised
+    normalised = unnormalised / expected
+
+    return {
+        "unnormalised": float(unnormalised),
+        "normalised": float(normalised),
+        "simpson_baseline": float(expected),
+    }
 
 
 def diversify(
@@ -513,30 +604,46 @@ def diversify(
     time_steps: int,
     radius: float,
     write_interval: int,
-    sensitivity: bool = False,
-) -> None | int:
+    intermediate_start: Path | None,
+    intermediate_step: int | None,
+) -> None:
     """Cluster languages per time step based on clustering previous time step."""
     # Dataframe of the population at the initial time step
     read_population = make_population_reader(directory, write_interval, time_steps)
-    population_current = read_population(0)
 
     # First time_step: initialize the start languages
-    languages = initialize_languages(
-        population_current,
-        distance_threshold,
-        linkage,
-    )
-    population_current["language"] = languages.astype(int)
-    max_language_id = languages.max()
+    if intermediate_start is not None and intermediate_step is not None:
+        # Start at intermediate point after warm-up run
+        population = gpd.read_file(intermediate_start)
+        population_current = population[population["time_step"] == intermediate_step]
+        languages = population_current["language"]
+    else:
+        # Initialize start languages
+        population_current = read_population(0)
+        languages = initialize_languages(
+            population_current,
+            distance_threshold,
+            linkage,
+        )
+        population_current["language"] = languages.astype(int)
+
+    population_current = cast("gpd.GeoDataFrame", population_current)
+    max_language_id = cast("int", languages.max())
+
+    # Calculate the spatial variation per language
+    nncor = nncor_discrete(population_current)
 
     # Create a dataframe to store meta data on the language divergence and convergence
     meta_data = pd.DataFrame(
         {
             "time_step": [0],
-            "convergences": [0],
             "divergences": [0],
+            "convergences": [0],
             "language_number": [population_current["language"].nunique()],
             "speaker_numbers": [population_current.groupby("language")["id"].count().sort_index().to_numpy()],
+            "nncor_unnormalized": nncor["unnormalised"],
+            "nncor_normalized": nncor["normalised"],
+            "simpson_baseline": nncor["simpson_baseline"],
         },
     )
 
@@ -553,7 +660,7 @@ def diversify(
         divergence_counter = 0
         convergence_counter = 0
 
-        population_previous = population_current
+        population_previous = cast("gpd.GeoDataFrame", population_current)
         population_current = read_population(time_step)
 
         # Determine the candidate clusters formed after splitting
@@ -589,12 +696,13 @@ def diversify(
             logger.error("Be careful! Language is not assigned")
 
         # Remove candidate cluster column, as it is not needed anymore
-        population_current = population_current.drop("candidate_language", axis=1)
+        population_current = cast("gpd.GeoDataFrame", population_current.drop("candidate_language", axis=1))
         # Update population with new language assignments
         population_total.append(population_current)
 
         # Record meta data for this time step
         number_languages = population_current["language"].nunique()
+        nncor = nncor_discrete(population_current)
 
         # 1D numpy array of speaker counts, ordered by language ID
         language_speakers = population_current.groupby("language")["id"].count().sort_index().to_numpy()
@@ -605,6 +713,9 @@ def diversify(
             int(convergence_counter),
             number_languages,
             language_speakers,
+            nncor["unnormalised"],
+            nncor["normalised"],
+            nncor["simpson_baseline"],
         ]
 
     # Save output to a single gpkg file
@@ -615,15 +726,8 @@ def diversify(
 
     # Save meta data to csv with speaker numbers as string
     meta_data["speaker_numbers"] = meta_data["speaker_numbers"].apply(
-        lambda x: np.array2string(x, separator=",", max_line_width=np.inf, threshold=np.inf).strip("[]"),
+        lambda x: np.array2string(x, separator=",", max_line_width=sys.maxsize, threshold=sys.maxsize).strip(
+            "[]",
+        ),
     )
     meta_data.to_csv(directory / "meta_data_cluster.csv", index=False)
-
-    if sensitivity:
-        # Compute number of unique languages at the last time step
-        last_step = int(population_total["time_step"].max())
-        languages_last = population_total.loc[population_total["time_step"] == last_step, "language"].unique()
-        logger.info("Last time step: %s; number of languages: %s", last_step, len(languages_last))
-        return len(languages_last)
-
-    return None
