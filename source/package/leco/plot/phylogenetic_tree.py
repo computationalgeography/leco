@@ -1,17 +1,21 @@
-"""Create phylogenetic visualizations of language evolution over time."""
+"""Create phylogenetic trees of language evolution over time."""
 
+import logging
 import re
 from collections import defaultdict
 from pathlib import Path
+from typing import cast
 
 import geopandas as gpd
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 
 def postprocess_phylogeny(population: gpd.GeoDataFrame) -> pd.DataFrame:
     """Generate dataframe on phylogenetic information for every language.
 
-    This information includes time of birth, time of death and the most common parent language.
+    This information includes time of birth, time of death, the parent language and the root language.
     """
     records = []
     for language, group in population.groupby("language"):
@@ -19,16 +23,22 @@ def postprocess_phylogeny(population: gpd.GeoDataFrame) -> pd.DataFrame:
         t_extinct = group["time_step"].max()
         if t_birth == 0:
             # Root language
-            parent_language = ""
+            parent_language = pd.NA
+            root_language = language
         else:
             # Get the ids of agents speaking this language at t_birth
-            start_speakers = group[group["time_step"] == t_birth]["id"].dropna().unique().tolist()
+            birth_rows = group["time_step"] == t_birth
+            start_speakers = pd.Series(group.loc[birth_rows, "id"]).dropna().unique().tolist()
             # Find which languages they spoke and how many at time step t_birth - 1
-            parent_language_counts = population[
-                (population["time_step"] == t_birth - 1) & (population["id"].isin(start_speakers))
-            ]["language"].value_counts()
+            prev_step_mask = (population["time_step"] == t_birth - 1) & population["id"].isin(start_speakers)
+            parent_language_counts = pd.Series(population.loc[prev_step_mask, "language"]).value_counts()
             # Only select the language with the highest speaker count as parent language
-            parent_language = [parent_language_counts.index[0]] if not parent_language_counts.empty else []
+            parent_language = (
+                cast("int", parent_language_counts.index[0]) if not parent_language_counts.empty else None
+            )
+            root_language = (
+                records[parent_language]["root_language"] if parent_language is not None else language
+            )
 
         records.append(
             {
@@ -36,6 +46,7 @@ def postprocess_phylogeny(population: gpd.GeoDataFrame) -> pd.DataFrame:
                 "t_birth": t_birth,
                 "t_extinct": t_extinct,
                 "parent": parent_language,
+                "root_language": root_language,
             },
         )
 
@@ -144,13 +155,10 @@ def build_ancestry_chains(phylogeny_df: pd.DataFrame, t_final: int, t_birth_map:
     Every chain consists of nodes, whereby a node includes the ancestor and time of switch to next ancestor.
     """
     # Create a mapping that gives the parent per language for fast and recurring look up
-    parent_map = {}
-    for _, row in phylogeny_df.iterrows():
-        parents = row["parent"]
-        if isinstance(parents, list) and len(parents) > 0:
-            parent_map[row["language"]] = parents[0]
-        else:
-            parent_map[row["language"]] = None  # root language
+    parent_map = {
+        row["language"]: (None if pd.isna(row["parent"]) else int(row["parent"].item()))  # type: ignore[arg-type]
+        for _, row in phylogeny_df.iterrows()
+    }
 
     # Find extant languages (present at final time step)
     extant = phylogeny_df[phylogeny_df["t_extinct"] == t_final]["language"].tolist()
@@ -251,12 +259,15 @@ def create_phylogeny(input_file: Path, time_steps: int) -> None:
 
     phylogeny_info = postprocess_phylogeny(population)
     t_birth_map = dict(zip(phylogeny_info["language"], phylogeny_info["t_birth"], strict=True))
+
     # Save phylogenetic data to csv file
     phylogeny_info.to_csv(output_path / "phylogeny_information.csv", index=False)
     ancestry_chains = build_ancestry_chains(phylogeny_info, time_steps, t_birth_map)
 
     # Build Newick trees for different roots
     per_root_trees = build_newick_trees_per_root(ancestry_chains)
+
+    # In create_phylogeny
     for root_label, root_newick in per_root_trees.items():
         clean_root = re.sub(r"[^A-Za-z0-9_-]+", "_", str(root_label)).strip("_")
         if clean_root == "":

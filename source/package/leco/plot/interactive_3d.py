@@ -3,13 +3,13 @@
 from pathlib import Path
 
 import geopandas as gpd
-import matplotlib as mpl
 import matplotlib.pyplot as plt
+from matplotlib.colors import ListedColormap
 
 
 def plot_3d_fig(
     input_file: Path,
-    cmap: mpl.colors.ListedColormap,
+    cmap: ListedColormap,
 ) -> None:
     """Create a 3D interactive plot of the leco model output."""
     # Read in the population data across all time steps

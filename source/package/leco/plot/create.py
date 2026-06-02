@@ -3,12 +3,13 @@
 from pathlib import Path
 
 import geopandas as gpd
-import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.colors import ListedColormap
 
-from .animation import plot_animation, plot_first_time_step, plot_last_time_step, plot_last_time_step_bold
+from .animation import plot_animation
 from .interactive_3d import plot_3d_fig
+from .phylogenetic_plots import visualize_phylogenies
 from .phylogenetic_tree import create_phylogeny
 from .summary import plot_summaries
 
@@ -16,7 +17,7 @@ from .summary import plot_summaries
 def create_colormap(
     languages: gpd.GeoSeries,
     seed: int,
-) -> tuple[mpl.colors.ListedColormap, dict[int, int]]:
+) -> tuple[ListedColormap, dict[int, int]]:
     """Create a consistent colormap for the languages present in the simulation output."""
     rng = np.random.default_rng(seed)
     nr_colors = 20
@@ -39,7 +40,7 @@ def create_colormap(
 
     # Create colormap from the assigned colors
     selected_colors = [language_colors[lang] for lang in language_ids]
-    cmap = mpl.colors.ListedColormap(selected_colors)
+    cmap = ListedColormap(selected_colors)
 
     # Create a mapping from language to index for plotting
     lang_to_index = {lang: idx for idx, lang in enumerate(language_ids)}
@@ -51,6 +52,7 @@ def plot(
     data: Path,
     parameters: dict,
     local: bool = False,
+    k_steps: int = 4,
 ) -> None:
     """Create plots of the leco model output."""
     population = gpd.read_file(data)
@@ -58,14 +60,14 @@ def plot(
     cmap, lang_to_index = create_colormap(population.language, parameters["initialization"]["seed"])
 
     plot_summaries(data, cmap, lang_to_index)
+
     create_phylogeny(data, parameters["initialization"]["steps"])
+    # Select equally distributed steps that you want to visualize spatial distribution of based on k_steps
+    steps = np.round(np.linspace(0, parameters["initialization"]["steps"], num=k_steps)).astype(int).tolist()
+    visualize_phylogenies(data.parent, steps, population)
 
     if local:
         # Creates interactive plot so only use this when running locally
         plot_3d_fig(data, cmap)
         # Create animation plot
-        plot_animation(data, parameters, cmap, lang_to_index)
-        # Create time snaps of the animation plot
-        plot_first_time_step(data, parameters, cmap, lang_to_index)
-        plot_last_time_step(data, parameters, cmap, lang_to_index)
-        plot_last_time_step_bold(data, parameters, cmap, lang_to_index)
+        plot_animation(data, parameters, cmap)
