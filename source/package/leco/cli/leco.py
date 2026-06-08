@@ -55,6 +55,7 @@ def cluster_languages(arguments: dict, configuration: dict) -> None:
     linkage = arguments["--linkage"]
     distance_threshold = float(arguments["--distance"])
     directory = Path(arguments["<directory>"])
+    gpkg_file_name = arguments["<gpkg_file_name>"]
 
     # Dictionary maps methods to their corresponding functions
     classification_by_method = {
@@ -67,6 +68,7 @@ def cluster_languages(arguments: dict, configuration: dict) -> None:
     if method == "feed_forward":
         classification_by_method[method](
             directory,
+            gpkg_file_name,
             distance_threshold,
             linkage,
             configuration["initialization"]["steps"],
@@ -111,7 +113,7 @@ def usage() -> str:
         {command} cluster [--debug] [--method <all|feed_forward|step>]
             [--linkage <single|average|complete>] [--distance <distance_threshold>]
             [--start_gpkg <gpkg_file>] [--intermediate_step <step>]
-            <configuration_file> <directory>
+            <configuration_file> <directory> <gpkg_file_name>
         {command} plot [--debug] <configuration_file> <gpkg_file>
 
     Options:
@@ -122,7 +124,9 @@ def usage() -> str:
     <directory>                             Directory to store/read the output
     --distance <distance_threshold>         Distance threshold to set clusters
                                               [default: 0.3]
-    <gpkg_file>                             Path to a gpkg file after clustering
+    <gpkg_file>                             Path to a gpkg file created during clustering
+    <gpkg_file_name>                        Name of the gpkg file to create
+                                                which will be stored in the <directory>
     --start_gpkg <gpkg_file>                Path to file with intermediate population configuration
     --start_geoparquet <geoparquet_file>    Path to file with intermediate population configuration
     --intermediate_step <step>              Time step in the intermediate geoparquet_file to start on
@@ -133,8 +137,8 @@ def usage() -> str:
 
     Typical workflow:
         {command} run configuration.toml results
-        {command} cluster --method all --distance 0.2 configuration.toml results
-        {command} plot configuration.toml population.gpkg
+        {command} cluster --distance 0.2 results/configuration.toml results population.gpkg
+        {command} plot results/configuration.toml results/population.gpkg
     """
 
 

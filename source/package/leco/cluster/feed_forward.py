@@ -599,6 +599,7 @@ def nncor_discrete(
 
 def diversify(
     directory: Path,
+    gpkg_file_name: str,
     distance_threshold: float,
     linkage: str,
     time_steps: int,
@@ -720,7 +721,7 @@ def diversify(
 
     # Save output to a single gpkg file
     pd.concat(population_total, ignore_index=True).to_file(
-        directory / f"population_{linkage}.gpkg",
+        directory / gpkg_file_name,
         driver="GPKG",
     )
 
