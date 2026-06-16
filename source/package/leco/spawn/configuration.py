@@ -1,4 +1,5 @@
 import copy
+import math
 import os
 from collections.abc import Generator
 from decimal import Decimal, getcontext
@@ -41,6 +42,10 @@ expand = {
 
 
 def as_string(value: float) -> str:
+    # Clamp value to zero if it is close
+    if math.isclose(value, 0, abs_tol=1e-15):
+        value = 0.0
+
     string = str(Decimal(value) * Decimal(1))
 
     if string.find(".") != -1:

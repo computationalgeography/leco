@@ -20,6 +20,24 @@ class PackageTest(unittest.TestCase):
         parameter = {"range": [1.0, 1.6, 0.1]}
         np.testing.assert_almost_equal(list(expand_range(parameter)), [1.0, 1.1, 1.2, 1.3, 1.4, 1.5])
 
+        parameter = {"range": [-1.0, 1.2, 0.2]}
+        np.testing.assert_almost_equal(
+            list(expand_range(parameter)),
+            [
+                -1.0,
+                -0.8,
+                -0.6,
+                -0.4,
+                -0.2,
+                0.0,
+                0.2,
+                0.4,
+                0.6,
+                0.8,
+                1.0,
+            ],
+        )
+
     def test_expand_set(self):
         parameter = {"set": [1, 5, 1]}
         self.assertEqual(list(expand_set(parameter)), [1, 5])
@@ -33,3 +51,22 @@ class PackageTest(unittest.TestCase):
 
         self.assertEqual(as_string(0.1), "0.1")
         self.assertEqual(float("0.1"), 0.1)
+
+        parameter = {"range": [-1.0, 1.2, 0.2]}
+        strings = [as_string(value) for value in expand_range(parameter)]
+        self.assertEqual(
+            strings,
+            [
+                "-1",
+                "-0.8",
+                "-0.6",
+                "-0.4",
+                "-0.2",
+                "0",
+                "0.2",
+                "0.4",
+                "0.6",
+                "0.8",
+                "1",
+            ],
+        )
