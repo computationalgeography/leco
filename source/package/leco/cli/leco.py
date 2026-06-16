@@ -105,41 +105,46 @@ def usage() -> str:
     """Return usage string of the leco command."""
     command = Path(sys.argv[0]).name
     return f"""\
-    Run leco model
+Run leco model
 
-    Usage:
-        {command} run [--debug] [--start_geoparquet <geoparquet_file>] [--intermediate_step <step>]
-            <configuration_file> <directory>
-        {command} cluster [--debug] [--method <all|feed_forward|step>]
-            [--linkage <single|average|complete>] [--distance <distance_threshold>]
-            [--start_gpkg <gpkg_file>] [--intermediate_step <step>]
-            <configuration_file> <directory> <gpkg_file_name>
-        {command} plot [--debug] <configuration_file> <gpkg_file>
+Usage:
+    {command} run [--debug] [--start_geoparquet <geoparquet_file>]
+        [--intermediate_step <step>] <configuration_file> <directory>
+    {command} cluster [--debug] [--method <all|feed_forward|step>]
+        [--linkage <single|average|complete>] [--distance <distance_threshold>]
+        [--start_gpkg <gpkg_file>] [--intermediate_step <step>]
+        <configuration_file> <directory> <gpkg_file_name>
+    {command} plot [--debug] <configuration_file> <gpkg_file>
 
-    Options:
-    -h --help                               Show this screen and exit
-    --version                               Show version and exit
-    <configuration_file>                    Path to a TOML configuration file
-    --debug                                 Enable debug logging
-    <directory>                             Directory to store/read the output
-    --distance <distance_threshold>         Distance threshold to set clusters
-                                              [default: 0.3]
-    <gpkg_file>                             Path to a gpkg file created during clustering
-    <gpkg_file_name>                        Name of the gpkg file to create
-                                                which will be stored in the <directory>
-    --start_gpkg <gpkg_file>                Path to file with intermediate population configuration
-    --start_geoparquet <geoparquet_file>    Path to file with intermediate population configuration
-    --intermediate_step <step>              Time step in the intermediate geoparquet_file to start on
-    --linkage <single|average|complete>     Clustering linkage to use
-                                              [default: average]
-    --method <all|feed_forward|step>        Clustering method to use
-                                              [default: feed_forward]
+Options:
+-h --help                             Show this screen and exit
+--version                             Show version and exit
+<configuration_file>                  Path to a TOML configuration file
+--debug                               Enable debug logging
+<directory>                           Directory to store/read the output
+--distance <distance_threshold>       Distance threshold to set clusters
+                                      [default: 0.3]
+<gpkg_file>                           Path to a gpkg file created during
+                                      clustering
+<gpkg_file_name>                      Name of the gpkg file to create
+                                      which will be stored in the
+                                      <directory>
+--start_gpkg <gpkg_file>              Path to file with intermediate
+                                      population configuration
+--start_geoparquet <geoparquet_file>  Path to file with intermediate
+                                      population configuration
+--intermediate_step <step>            Time step in the intermediate
+                                      geoparquet_file to start on
+--linkage <single|average|complete>   Clustering linkage to use
+                                      [default: average]
+--method <all|feed_forward|step>      Clustering method to use
+                                      [default: feed_forward]
 
-    Typical workflow:
-        {command} run configuration.toml results
-        {command} cluster --distance 0.2 results/configuration.toml results population.gpkg
-        {command} plot results/configuration.toml results/population.gpkg
-    """
+Typical workflow:
+    {command} run configuration.toml results
+    {command} cluster --distance 0.2 results/configuration.toml results population.gpkg
+    {command} plot results/configuration.toml results/population.gpkg
+"""
 
 
 @main_function
