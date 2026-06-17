@@ -13,14 +13,10 @@ __all__ = ["plot"]
 def plot_(arguments: tuple[tuple[dict, Path], list[str]]) -> None:
     configuration_path_tuple, subcommand_arguments = arguments
     configuration, directory_path = configuration_path_tuple
-    # TODO: This name must either be passed in or programmatically determined
-    # NOTE: See also: https://github.com/computationalgeography/leco/issues/29
-    geopackage_path = directory_path / "population_average.gpkg"
 
-    if not geopackage_path.exists():
-        raise ValueError(f"GeoPackage {geopackage_path} does not exist")
-
-    # geopackage_pathname,
+    # NOTE: Get rid of this hack, see GH issue 39
+    assert len(subcommand_arguments) == 1, "Expected name of geopackage"
+    geopackage_path = directory_path / subcommand_arguments[0]
 
     with tempfile.NamedTemporaryFile(delete_on_close=False) as file:
         tomli_w.dump(configuration, file)
@@ -30,9 +26,10 @@ def plot_(arguments: tuple[tuple[dict, Path], list[str]]) -> None:
             usage(),
             [
                 "plot",
-                *subcommand_arguments,
                 str(configuration_file_path),
                 str(geopackage_path),
+                # NOTE: See GH issue 39
+                # *subcommand_arguments,
             ],
         )
 
