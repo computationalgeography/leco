@@ -4,8 +4,8 @@ import argparse
 import re
 from collections import defaultdict
 from pathlib import Path
+from typing import cast
 
-import geopandas as gpd
 import numpy as np
 import pandas as pd
 
@@ -18,25 +18,32 @@ PARAMETER_NAMES = [
 ]
 
 
-def parse_path_metadata(filepath: Path) -> tuple[str, dict]:
+def parse_path_metadata(filepath: Path, baseline: bool = False) -> tuple[str, dict]:
     """Extract all parameter values and seed from a nested path.
 
-    Path looks like:
-    speed_0.5/mutation_rate_0.01/radius_30.0/diffusion_rate_0.1/similarity_preference_0.8/seed_42/population.gpkg
+    Parametrized path:
+        speed_0.5/mutation_rate_0.01/radius_30.0/diffusion_rate_0.1/similarity_preference_0.8/seed_42/
 
-    It returns:
+    Baseline path:
+        seed_42/
+
+    Returns:
         seed: the seed value as string
-        params: dict of all parameter values
+        params: dict of parameter values (all None if baseline=True)
+
     """
     filepath_str = str(filepath)
     params = {}
 
-    for key in PARAMETER_NAMES:
-        match = re.search(rf"{key}_(-?\d+(?:\.\d+)?)", filepath_str)
-        if match:
-            params[key] = match.group(1)
-        else:
-            raise ValueError(f"Could not parse '{key}' from {filepath}")
+    if baseline:
+        params = dict.fromkeys(PARAMETER_NAMES)
+    else:
+        for key in PARAMETER_NAMES:
+            match = re.search(rf"{key}_(-?\d+(?:\.\d+)?)", filepath_str)
+            if match:
+                params[key] = match.group(1)
+            else:
+                raise ValueError(f"Could not parse '{key}' from {filepath}")
 
     seed_match = re.search(r"seed_(\d+)", filepath_str)
     if not seed_match:
@@ -45,117 +52,93 @@ def parse_path_metadata(filepath: Path) -> tuple[str, dict]:
     return seed_match.group(1), params
 
 
-def organize_by_params_and_seed(
-    populations: list[gpd.GeoDataFrame],
-    gpkg_filepaths: list[Path],
-    metadata_files: list[pd.DataFrame],
-) -> dict:
-    """Organize GeoDataFrames by parameter combination and seed.
-
-    Returns nested dictionary: {param_combo_tuple: {seed: (gdf, metadata)}}
-    with param_combo_tuple = (speed, mutation_rate, radius, diffusion_rate, similarity_preference)
-    """
-    scenario_dict = defaultdict(dict)
-
-    for gdf, filepath, metadata in zip(populations, gpkg_filepaths, metadata_files, strict=True):
-        seed, params = parse_path_metadata(filepath)
-        param_key = tuple(params[p] for p in PARAMETER_NAMES)
-        scenario_dict[param_key][seed] = (gdf, metadata)
-
-    return dict(scenario_dict)
-
-
 def organize_meta_by_params_and_seed(
-    csv_filepaths: list[Path],
+    run_dirs: list[Path],
     metadata_files: list[pd.DataFrame],
     metacluster_files: list[pd.DataFrame],
+    baseline: bool = False,
 ) -> dict:
     """Organize meta data by parameter combination and seed.
 
-    Returns nested dictionary: {param_combo_tuple: {seed: (gdf, metadata)}}
-    with param_combo_tuple = (speed, mutation_rate, radius, diffusion_rate, similarity_preference)
+    Returns nested dictionary: {param_combo_tuple: {seed: (metadata, metacluster)}}
+    For baseline runs, param_combo_tuple is a single entry of all Nones.
     """
     scenario_dict = defaultdict(dict)
 
-    for filepath, metadata, metacluster in zip(csv_filepaths, metadata_files, metacluster_files, strict=True):
-        seed, params = parse_path_metadata(filepath)
+    for path, metadata, metacluster in zip(run_dirs, metadata_files, metacluster_files, strict=True):
+        seed, params = parse_path_metadata(path, baseline=baseline)
         param_key = tuple(params[p] for p in PARAMETER_NAMES)
         scenario_dict[param_key][seed] = (metadata, metacluster)
 
     return dict(scenario_dict)
 
 
-def write_data(
-    organized_data: dict,
-    step_to_years: int,
+def extract_phylogeny_info(
+    run_dirs: list[Path],
+    metacluster_files: list[pd.DataFrame],
 ) -> pd.DataFrame:
-    """Calculate summary statistics across all parameter combinations and seeds."""
-    # Get the first actual dataframe to extract time steps
-    first_param_combo = next(iter(organized_data.values()))
-    first_seed = next(iter(first_param_combo.values()))
-    first_meta_data = first_seed[1]
+    """Extract family-level statistics from phylogeny_information.csv per seed.
 
-    time_steps = sorted(first_meta_data["time_step"].unique())
-    time_steps_years = (np.array(time_steps) * step_to_years).tolist()
-    last_10_steps = time_steps[-10:]
-
+    For each seed:
+    - Loads phylogeny_information.csv
+    - Identifies languages alive at the final time step
+    - Aligns with the speaker array from meta_data_cluster.csv (sorted by language ID)
+    - Computes per-family language count and speaker count
+    - Returns mean/min/max across families, plus family count
+    """
     results = []
 
-    for param_key, seeds_dict in organized_data.items():
-        # Unpack parameter combination for labelling
-        param_dict = dict(zip(PARAMETER_NAMES, param_key, strict=True))
-        print(f"Processing params: {param_dict}")
+    for run_dir, metacluster in zip(run_dirs, metacluster_files, strict=True):
+        seed_match = re.search(r"seed_(\d+)", str(run_dir))
+        if not seed_match:
+            raise ValueError(f"Could not parse seed from {run_dir}")
+        seed = seed_match.group(1)
 
-        for seed, (gdf, metadata) in seeds_dict.items():
-            print(f"  seed={seed}")
+        phylogeny_path = run_dir / "phylogeny_information.csv"
+        if not phylogeny_path.exists():
+            raise FileNotFoundError(f"No phylogeny_information.csv found in {run_dir}")
 
-            number_languages = gdf.groupby("time_step")["language"].nunique().sort_index().tolist()
+        phylo = pd.read_csv(phylogeny_path)
 
-            language_speakers = (
-                gdf.groupby(["time_step", "language"])["id"]
-                .count()
-                .reset_index(name="speaker_count")
-                .pivot_table(
-                    index="time_step",
-                    columns="language",
-                    values="speaker_count",
-                    fill_value=0,
-                )
-                .sort_index()
+        # Get the final time step speaker array
+        final_row = metacluster.iloc[-1]
+        final_step = final_row["time_step"]
+        speaker_array = final_row["speaker_numbers"]  # already parsed as np.array
+
+        # Languages alive at final step: t_extinct is NaN or beyond final step
+        alive = cast(
+            "pd.DataFrame",
+            phylo[phylo["t_extinct"].isna() | (phylo["t_extinct"] >= final_step)].copy(),
+        )
+        alive = alive.sort_values("language").reset_index(drop=True)
+
+        if len(alive) != len(speaker_array):
+            raise ValueError(
+                f"Seed {seed}: alive language count ({len(alive)}) does not match "
+                f"speaker array length ({len(speaker_array)})",
             )
 
-            external_changes = metadata["external_change"]
-            internal_changes = metadata["internal_change"]
+        # Align speaker counts with language IDs
+        alive["speaker_count"] = speaker_array
 
-            # Compute speaker array only for last 10 time steps
-            speakers_last_10 = {}
-            for step in last_10_steps:
-                speakers_at_step = language_speakers.loc[step]
-                nonzero = speakers_at_step[speakers_at_step > 0]
-                speakers_last_10[step] = sorted(nonzero.to_numpy(), reverse=True)
+        # Aggregate per family
+        family_agg = alive.groupby("root_language").agg(
+            language_count=("language", "count"),
+            speaker_count=("speaker_count", "sum"),
+        )
 
-            for i, year in enumerate(time_steps_years):
-                speakers_at_timestep = language_speakers.loc[time_steps[i]]
-                nonzero_speakers = speakers_at_timestep[speakers_at_timestep > 0]
-
-                row = {
-                    "seed": seed,
-                    **param_dict,
-                    "year": year,
-                    "language_count": number_languages[i],
-                    "internal_change": internal_changes[i],
-                    "external_change": external_changes[i],
-                    "speaker_mean": np.mean(nonzero_speakers),
-                    "speaker_min": np.min(nonzero_speakers),
-                    "speaker_max": np.max(nonzero_speakers),
-                }
-
-                if time_steps[i] in last_10_steps:
-                    row["speakers_per_language"] = np.array(speakers_last_10[time_steps[i]])
-                else:
-                    row["speakers_per_language"] = None
-
-                results.append(row)
+        results.append(
+            {
+                "seed": seed,
+                "family_count": len(family_agg),
+                "languages_per_family_mean": family_agg["language_count"].mean(),
+                "languages_per_family_min": family_agg["language_count"].min(),
+                "languages_per_family_max": family_agg["language_count"].max(),
+                "speakers_per_family_mean": family_agg["speaker_count"].mean(),
+                "speakers_per_family_min": family_agg["speaker_count"].min(),
+                "speakers_per_family_max": family_agg["speaker_count"].max(),
+            },
+        )
 
     return pd.DataFrame(results)
 
@@ -163,25 +146,22 @@ def write_data(
 def write_meta_data(
     organized_data: dict,
     step_to_years: int,
+    baseline: bool = False,
     expected_seed_count: int = 5,
 ) -> pd.DataFrame:
     """Calculate summary statistics across all parameter combinations and seeds."""
-    # Get the first actual dataframe to extract time steps
     first_param_combo = next(iter(organized_data.values()))
     first_seed = next(iter(first_param_combo.values()))
     first_meta_data = first_seed[0]
-
     time_steps = sorted(first_meta_data["time_step"].unique())
     time_steps_years = (np.array(time_steps) * step_to_years).tolist()
 
     results = []
 
     for param_key, seeds_dict in organized_data.items():
-        # Unpack parameter combination for labelling
         param_dict = dict(zip(PARAMETER_NAMES, param_key, strict=True))
 
-        # Check if every parameter combination has indeed the expected number of seeds
-        if len(seeds_dict) != expected_seed_count:
+        if not baseline and len(seeds_dict) != expected_seed_count:
             raise ValueError(
                 f"Expected {expected_seed_count} seeds for {param_dict}, "
                 f"but found {len(seeds_dict)}: {list(seeds_dict.keys())}",
@@ -192,11 +172,13 @@ def write_meta_data(
             internal_changes = metadata["internal_change"]
             number_languages = metacluster["language_number"]
             language_speakers = metacluster["speaker_numbers"]
+            convergences = metacluster["convergences"]
+            divergences = metacluster["divergences"]
+            nncor_unnormalized = metacluster["nncor_unnormalized"]
+            nncor_normalized = metacluster["nncor_normalized"]
+            simpson_baseline = metacluster["simpson_baseline"]
 
             for i, year in enumerate(time_steps_years):
-                """ if year < 1000:
-                    continue """
-
                 row = {
                     "seed": seed,
                     **param_dict,
@@ -208,32 +190,15 @@ def write_meta_data(
                     "speaker_mean": float(language_speakers[i].mean()),
                     "speaker_min": int(language_speakers[i].min()),
                     "speaker_max": int(language_speakers[i].max()),
+                    "convergences": convergences[i],
+                    "divergences": divergences[i],
+                    "nncor_unnormalized": nncor_unnormalized[i],
+                    "nncor_normalized": nncor_normalized[i],
+                    "simpson_baseline": simpson_baseline[i],
                 }
-
                 results.append(row)
 
     return pd.DataFrame(results)
-
-
-def extract_files(gpkg_paths: list[Path]) -> tuple[list[gpd.GeoDataFrame], list[pd.DataFrame]]:
-    """Extract gpkg files and the metadata files from the same run."""
-    populations = []
-    metadatas = []
-
-    for gpkg_path in gpkg_paths:
-        population = gpd.read_file(gpkg_path)
-        population["language_profile"] = population["language_profile"].apply(
-            lambda x: np.fromstring(str(x).strip("[]"), sep=" ", dtype=int),
-        )
-        populations.append(population)
-
-        metadata_path = gpkg_path.parent / "meta_data.csv"
-        if not metadata_path.exists():
-            raise FileNotFoundError(f"No metadata file found in {gpkg_path.parent}")
-
-        metadatas.append(pd.read_csv(metadata_path))
-
-    return populations, metadatas
 
 
 def extract_meta_files(csv_paths: list[Path]) -> tuple[list[pd.DataFrame], list[pd.DataFrame]]:
@@ -242,47 +207,50 @@ def extract_meta_files(csv_paths: list[Path]) -> tuple[list[pd.DataFrame], list[
     metaclusters = []
 
     for csv_path in csv_paths:
-        metadata_path = csv_path.parent / "meta_data.csv"
+        metadata_path = csv_path / "meta_data.csv"
         if not metadata_path.exists():
-            raise FileNotFoundError(f"No metadata file found in {csv_path.parent}")
-
+            raise FileNotFoundError(f"No metadata file found in {csv_path}")
         metadatas.append(pd.read_csv(metadata_path))
 
-        metacluster_path = csv_path.parent / "meta_data_cluster.csv"
+        metacluster_path = csv_path / "meta_data_cluster.csv"
         if not metacluster_path.exists():
-            raise FileNotFoundError(f"No metadata file found in {csv_path.parent}")
+            raise FileNotFoundError(f"No metadata file found in {csv_path}")
 
         metacluster = pd.read_csv(metacluster_path).copy()
-        """ metacluster["speaker_numbers"] = metacluster["speaker_numbers"].apply(
-            lambda x: np.fromstring(str(x).strip("[]"), sep=" ", dtype=int),
-        ) """
         metacluster["speaker_numbers"] = metacluster["speaker_numbers"].apply(
             lambda x: np.array(
                 [v for v in str(x).strip("[]").replace(",", " ").split() if v != "..."],
                 dtype=int,
             ),
         )
-
         metaclusters.append(metacluster)
 
     return metadatas, metaclusters
 
 
-def process_all(directory_path: Path) -> None:
+def process_all(directory_path: Path, baseline: bool = False) -> None:
     """Create summarizing data of the leco model output for the nested parameter structure."""
-    # Find all gpkg files in the base path
     cluster_file_paths = list(directory_path.rglob("meta_data_cluster.csv"))
+    run_dirs = sorted({path.parent for path in cluster_file_paths})
 
-    # Extract gpkg files and metadata files
-    metadata, metaclusters = extract_meta_files(cluster_file_paths)
-
-    organized_data = organize_meta_by_params_and_seed(cluster_file_paths, metadata, metaclusters)
+    metadata, metaclusters = extract_meta_files(run_dirs)
+    organized_data = organize_meta_by_params_and_seed(run_dirs, metadata, metaclusters, baseline=baseline)
 
     step_to_years = 20
-    stats_df = write_meta_data(organized_data, step_to_years)
+    stats_df = write_meta_data(organized_data, step_to_years, baseline=baseline)
     print(stats_df)
 
-    output_path = directory_path / "spawn_combined_stats.csv"
+    if baseline:
+        # Extract phylogeny information from phylogeny_information.csv
+        phylo_df = extract_phylogeny_info(run_dirs, metaclusters)
+        stats_df["seed"] = stats_df["seed"].astype(str)
+        phylo_df["seed"] = phylo_df["seed"].astype(str)
+        stats_df = stats_df.merge(phylo_df, on="seed", how="left")
+        output_path = directory_path / "spawn_base_stats.csv"
+        stats_df.to_csv(output_path, index=False)
+    else:
+        output_path = directory_path / "spawn_combined_stats.csv"
+
     stats_df.to_csv(output_path, index=False)
 
 
@@ -295,5 +263,14 @@ if __name__ == "__main__":
         nargs="?",
         help="Base directory that contains nested population*.gpkg files.",
     )
+    # When adding --baseline it summarizes only the baseline
+    # and will not search for the variable names in the folder path
+    parser.add_argument(
+        "--baseline",
+        action="store_true",
+        default=False,
+        help="""Set if the directory contains a baseline run (seed_x folders only, no parameter subfolders).
+        Requires phylogeny_information.csv files for every seed.""",
+    )
     args = parser.parse_args()
-    process_all(Path(args.directory_path))
+    process_all(Path(args.directory_path), baseline=args.baseline)
