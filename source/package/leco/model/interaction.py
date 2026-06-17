@@ -115,8 +115,6 @@ def interact(
         )
 
         if len(interaction_partners) == 0:
-            ### This could happen when number of neighbors is zero and using partner_proportion
-            ### might chance to fixed number
             continue
 
         # Shuffle the order of the interaction partners as the agent's profile is updated continuously
@@ -128,14 +126,14 @@ def interact(
             (len(interaction_partners), profile_length),
         )
 
-        for i, partner_idx in enumerate(interaction_partners):
+        for i, neighbor_profile_idx in enumerate(interaction_partners):
             # Determine which features from the partner's language profile will be diffused
             # The partner corresponds to the ith array from diffusion_probabilities
             diffusion_mask = diffusion_probabilities[i] < interact_attributes["diffusion_rate"]
 
             new_profiles[agent_idx] = np.where(
                 diffusion_mask,
-                neighbor_profiles[partner_idx],
+                neighbor_profiles[neighbor_profile_idx],
                 new_profiles[agent_idx],
             )
 
