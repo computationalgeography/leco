@@ -18,7 +18,11 @@ def postprocess_phylogeny(population: gpd.GeoDataFrame) -> pd.DataFrame:
     This information includes time of birth, time of death, the parent language and the root language.
     """
     records = []
-    for language, group in population.groupby("language"):
+    root_language_map: dict[int, int] = {}
+    min_times = cast("pd.Series", population.groupby("language")["time_step"].min())
+    languages_sorted = min_times.sort_values().index
+    for language in languages_sorted:
+        group = population[population["language"] == language]
         t_birth = group["time_step"].min()
         t_extinct = group["time_step"].max()
         if t_birth == 0:
@@ -36,10 +40,8 @@ def postprocess_phylogeny(population: gpd.GeoDataFrame) -> pd.DataFrame:
             parent_language = (
                 cast("int", parent_language_counts.index[0]) if not parent_language_counts.empty else None
             )
-            root_language = (
-                records[parent_language]["root_language"] if parent_language is not None else language
-            )
-
+            root_language = root_language_map[parent_language] if parent_language is not None else language
+        root_language_map[language] = root_language
         records.append(
             {
                 "language": language,
@@ -49,7 +51,6 @@ def postprocess_phylogeny(population: gpd.GeoDataFrame) -> pd.DataFrame:
                 "root_language": root_language,
             },
         )
-
     return pd.DataFrame(records)
 
 

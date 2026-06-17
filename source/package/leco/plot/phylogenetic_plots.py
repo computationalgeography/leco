@@ -302,7 +302,6 @@ def plot_spatial_families(
 
     ax.get_xaxis().set_ticks([])
     ax.get_yaxis().set_ticks([])
-    ax.set_title("Agents colored by phylogenetic root (shape = language)", size=14)
 
     plt.savefig(output_path / f"Phylospatial_step{time_step}.png", bbox_inches="tight", dpi=150)
     plt.close()
