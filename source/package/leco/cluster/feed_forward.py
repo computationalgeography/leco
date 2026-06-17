@@ -312,7 +312,7 @@ def find_merges_network(
             candidate_id
         )
         # Update convergence_counter if clusters have merged
-        convergence_counter += 1
+        convergence_counter += len(component) - 1
 
     return current_step, convergence_counter
 
@@ -378,7 +378,7 @@ def assign_merge_cluster_ids(
                     iter(members),
                 )
             )
-            convergence_counter += 1
+            convergence_counter += len(members) - 1
 
     return current_step, convergence_counter
 
