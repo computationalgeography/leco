@@ -308,7 +308,7 @@ def find_merges_network(
             continue
         # When there are edges, all connected candidate clusters are assigned the same cluster id
         candidate_id = next(iter(component))
-        current_step.loc[current_step["candidate_language"].isin(component), "candidate_language"] = (
+        current_step.loc[current_step["candidate_language"].isin(list(component)), "candidate_language"] = (
             candidate_id
         )
         # Update convergence_counter if clusters have merged
@@ -604,6 +604,7 @@ def diversify(
     linkage: str,
     time_steps: int,
     radius: float,
+    diffusion_rate: float,
     write_interval: int,
     intermediate_start: Path | None,
     intermediate_step: int | None,
@@ -676,17 +677,19 @@ def diversify(
         if np.any(population_current["candidate_language"] == -1):
             logger.error("Be careful! Candidate language not fully assigned after splitting")
 
-        # Find all neighboring clusters within radius
-        all_neighbors = find_neighboring_clusters(population_current, radius)
+        # When there is a scenario of no diffusion, merging cannot happen
+        if not (radius == 0.0 or diffusion_rate == 0.0):
+            # Find all neighboring clusters within radius
+            all_neighbors = find_neighboring_clusters(population_current, radius)
 
-        # Merge clusters based on language similarity
-        population_current, convergence_counter = find_merging_events(
-            population_current,
-            all_neighbors,
-            distance_threshold,
-            linkage,
-            convergence_counter,
-        )
+            # Merge clusters based on language similarity
+            population_current, convergence_counter = find_merging_events(
+                population_current,
+                all_neighbors,
+                distance_threshold,
+                linkage,
+                convergence_counter,
+            )
 
         population_current, max_language_id = assign_languages(
             population_current,

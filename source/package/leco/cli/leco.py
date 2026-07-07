@@ -71,9 +71,10 @@ def cluster_languages(arguments: dict, configuration: dict) -> None:
             gpkg_file_name,
             distance_threshold,
             linkage,
-            configuration["initialization"]["steps"],
-            configuration["interaction"]["radius"],
-            configuration["initialization"]["write_interval"],
+            int(configuration["initialization"]["steps"]),
+            float(configuration["interaction"]["radius"]),
+            float(configuration["interaction"]["diffusion_rate"]),
+            int(configuration["initialization"]["write_interval"]),
             arguments["--start_gpkg"],
             int(arguments["--intermediate_step"]) if arguments["--intermediate_step"] else 0,
         )
