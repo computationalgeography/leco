@@ -8,9 +8,7 @@ from pathlib import Path
 import docopt
 import tomllib
 
-from ..cluster.all import classify_all
 from ..cluster.feed_forward import diversify
-from ..cluster.per_step import diversify_stepwise
 from ..model.simulation import simulate
 from ..plot.create import plot
 from ..version import __version__ as version
@@ -51,35 +49,23 @@ def run_leco(
 
 def cluster_languages(arguments: dict, configuration: dict) -> None:
     """Run language classification on the leco model output for a specified method."""
-    method = arguments["--method"]
     linkage = arguments["--linkage"]
     distance_threshold = float(arguments["--distance"])
     directory = Path(arguments["<directory>"])
     gpkg_file_name = arguments["<gpkg_file_name>"]
 
-    # Dictionary maps methods to their corresponding functions
-    classification_by_method = {
-        "all": classify_all,  # 3D clustering over all time_steps
-        "feed_forward": diversify,  # Feed-forward diversification-based clustering
-        "step": diversify_stepwise,  # Cluster per time step independently
-    }
-
-    # Call the corresponding function with appropriate parameters
-    if method == "feed_forward":
-        classification_by_method[method](
-            directory,
-            gpkg_file_name,
-            distance_threshold,
-            linkage,
-            int(configuration["initialization"]["steps"]),
-            float(configuration["interaction"]["radius"]),
-            float(configuration["interaction"]["diffusion_rate"]),
-            int(configuration["initialization"]["write_interval"]),
-            arguments["--start_gpkg"],
-            int(arguments["--intermediate_step"]) if arguments["--intermediate_step"] else 0,
-        )
-    else:
-        classification_by_method[method](directory, distance_threshold, linkage)
+    diversify(
+        directory,
+        gpkg_file_name,
+        distance_threshold,
+        linkage,
+        int(configuration["initialization"]["steps"]),
+        float(configuration["interaction"]["radius"]),
+        float(configuration["interaction"]["diffusion_rate"]),
+        int(configuration["initialization"]["write_interval"]),
+        arguments["--start_gpkg"],
+        int(arguments["--intermediate_step"]) if arguments["--intermediate_step"] else 0,
+    )
 
 
 def plot_results(arguments: dict, configuration: dict) -> None:
@@ -111,10 +97,10 @@ Run leco model
 Usage:
     {command} run [--debug] [--start_geoparquet <geoparquet_file>]
         [--intermediate_step <step>] <configuration_file> <directory>
-    {command} cluster [--debug] [--method <all|feed_forward|step>]
-        [--linkage <single|average|complete>] [--distance <distance_threshold>]
-        [--start_gpkg <gpkg_file>] [--intermediate_step <step>]
-        <configuration_file> <directory> <gpkg_file_name>
+    {command} cluster [--debug] [--linkage <single|average|complete>]
+        [--distance <distance_threshold>] [--start_gpkg <gpkg_file>]
+        [--intermediate_step <step>] <configuration_file> <directory>
+        <gpkg_file_name>
     {command} plot [--debug] <configuration_file> <gpkg_file>
 
 Options:
@@ -138,8 +124,6 @@ Options:
                                       geoparquet_file to start on
 --linkage <single|average|complete>   Clustering linkage to use
                                       [default: average]
---method <all|feed_forward|step>      Clustering method to use
-                                      [default: feed_forward]
 
 Typical workflow:
     {command} run configuration.toml results
