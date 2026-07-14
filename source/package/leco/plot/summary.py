@@ -1,12 +1,14 @@
 """Functions to create summary plots of leco model output."""
 
 from pathlib import Path
+from typing import cast
 
 import geopandas as gpd
-import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
+from matplotlib.colors import ListedColormap
 
 
 def calculate_tick_intervals(min_val: int, max_val: int, max_ticks: int = 10) -> list[int]:
@@ -77,9 +79,9 @@ def language_number_plot(
 
 
 def language_speakers_plot(
-    language_speakers: gpd.GeoDataFrame,
+    language_speakers: pd.DataFrame,
     output_path: Path,
-    cmap: mpl.colors.ListedColormap,
+    cmap: ListedColormap,
     lang_to_index: dict[int, int],
     step_to_years: int = 20,
 ) -> None:
@@ -87,13 +89,13 @@ def language_speakers_plot(
     # Sort the languages by most to least spoken at the first time step,
     # so most spoken languages are shown on the bottom
     sorted_cols = language_speakers.iloc[0].sort_values(ascending=False).index
-    language_speakers = language_speakers[sorted_cols]
+    language_speakers = language_speakers[sorted_cols]  # type: ignore[arg-type]
 
     # Scale the index to represent years for each time step (assuming each time step is 20 years)
     language_speakers.index = language_speakers.index * step_to_years
 
     # Create color list that matches sorted language columns
-    colors = [cmap.colors[lang_to_index[lang]] for lang in language_speakers.columns]
+    colors = [cmap.colors[lang_to_index[cast("int", lang)]] for lang in language_speakers.columns.tolist()]  # type: ignore[arg-type]
 
     _fig, ax = plt.subplots(figsize=(10, 6))
 
@@ -105,8 +107,8 @@ def language_speakers_plot(
         linewidth=0,
     )
 
-    ax.get_legend().remove()  # Remove the legend for clarity
-    ax.set_xlim(language_speakers.index.min(), language_speakers.index.max())
+    ax.get_legend().remove()  # Remove the legend for clarity # type: ignore[arg-type]
+    ax.set_xlim(language_speakers.index.min(), language_speakers.index.max())  # type: ignore[arg-type]
     ax.set_xlabel("Year", size=18)
     ax.set_ylabel("Number of Agents", size=18)
     ax.tick_params(axis="both", labelsize=14)
@@ -118,8 +120,8 @@ def language_speakers_plot(
 
 
 def calculate_linguistic_similarity_pairwise(
-    profile_a: np.ndarray[int],
-    profile_b: np.ndarray[int],
+    profile_a: npt.NDArray[np.int64],
+    profile_b: npt.NDArray[np.int64],
 ) -> float:
     """Calculate the similarity between two language profiles."""
     # Count the number of meanings with the same form
@@ -145,7 +147,13 @@ def speaker_distribution_plot(
         bins = np.array([0, speaker_bin_size])
 
     fig, ax = plt.subplots(figsize=(10, 6))
-    ax.hist(speakers_per_language, bins=bins, color="steelblue", alpha=0.75, edgecolor="black")
+    ax.hist(
+        speakers_per_language,
+        bins=cast("list[float]", bins),
+        color="steelblue",
+        alpha=0.75,
+        edgecolor="black",
+    )
     ax.set_title("Speaker Distribution at Final Timestep", size=16)
     ax.set_xlabel("Number of Agents Speaking a Language", size=14)
     ax.set_ylabel("Frequency (Number of Languages)", size=14)
@@ -155,53 +163,10 @@ def speaker_distribution_plot(
     plt.close()
 
 
-def plot_last_time_step(
-    final_population: gpd.GeoDataFrame,
-    output_path: Path,
-    final_step: int,
-    cmap: mpl.colors.ListedColormap,
-    lang_to_index: dict[int, int] | None,
-) -> None:
-    """Create a static spatial plot for the final time step.
-
-    Perhaps this function would fit better in the animation file.
-    """
-    _fig, ax = plt.subplots()
-
-    # Map language IDs to indices for color mapping, using lang_to_index if provided
-    if lang_to_index is not None:
-        indices = final_population["language"].map(lang_to_index).to_numpy()
-    else:
-        indices, _ = pd.factorize(final_population["language"])
-
-    ax.scatter(
-        final_population.geometry.x,
-        final_population.geometry.y,
-        c=indices,
-        cmap=cmap,
-        vmin=0,
-        vmax=indices.max() if indices.size > 0 else 0,
-        s=80,
-        marker=".",
-    )
-
-    """ ax.set_xlim(0, space[0])
-    ax.set_ylim(0, space[1])
-    ax.set_xlabel("X Position (km)", size=20)
-    ax.set_ylabel("Y Position (km)", size=20)
-    ax.tick_params(axis="both", labelsize=16) """
-    ax.get_xaxis().set_ticks([])
-    ax.get_yaxis().set_ticks([])
-    ax.set_title(f"Year {final_step * 20}", size=20)
-
-    plt.savefig(output_path / "LastStep.png", bbox_inches="tight")
-    plt.close()
-
-
 def plot_summaries(
     input_file: Path,
-    cmap: mpl.colors.ListedColormap | None,
-    lang_to_index: dict[int, int] | None,
+    cmap: ListedColormap,
+    lang_to_index: dict[int, int],
 ) -> None:
     """Create summarizing plots of the leco model output."""
     # Read in the population data across all time steps
@@ -214,14 +179,20 @@ def plot_summaries(
     language_number_plot(output_path, number_languages)
 
     # Create a figure showing the number of agents speaking a language over time
-    ## For now, not informative
-    """language_speakers = population.groupby(["time_step", "language"])["id"].count().unstack(fill_value=0)
-    language_speakers_plot(language_speakers, output_path, cmap, lang_to_index)"""
+    language_speakers = population.pivot_table(
+        index="time_step",
+        columns="language",
+        values="id",
+        aggfunc="count",
+        fill_value=0,
+    )
+    language_speakers_plot(language_speakers, output_path, cmap, lang_to_index)
 
     # Create a figure showing the frequency distribution of agents speaking a language at last time step
-    final_step = population["time_step"].max()
-    last_step_population = population[population["time_step"] == final_step]
+    final_step = int(cast("int", population["time_step"].max()))
+    last_step_population = gpd.GeoDataFrame(
+        population[population["time_step"] == final_step],
+        geometry=population.geometry.name,
+        crs=population.crs,
+    )
     speaker_distribution_plot(last_step_population, output_path)
-
-    # Create a figure of the spatial distribution of agents at last time step
-    plot_last_time_step(last_step_population, output_path, final_step, cmap, lang_to_index)

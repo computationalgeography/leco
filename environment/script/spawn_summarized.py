@@ -84,7 +84,7 @@ def extract_phylogeny_info(
     - Identifies languages alive at the final time step
     - Aligns with the speaker array from meta_data_cluster.csv (sorted by language ID)
     - Computes per-family language count and speaker count
-    - Returns mean/min/max across families, plus family count
+    - Returns mean/median/min/max across families, plus family count
     """
     results = []
 
@@ -132,9 +132,11 @@ def extract_phylogeny_info(
                 "seed": seed,
                 "family_count": len(family_agg),
                 "languages_per_family_mean": family_agg["language_count"].mean(),
+                "languages_per_family_median": np.median(family_agg["language_count"]),
                 "languages_per_family_min": family_agg["language_count"].min(),
                 "languages_per_family_max": family_agg["language_count"].max(),
                 "speakers_per_family_mean": family_agg["speaker_count"].mean(),
+                "speakers_per_family_median": np.median(family_agg["speaker_count"]),
                 "speakers_per_family_min": family_agg["speaker_count"].min(),
                 "speakers_per_family_max": family_agg["speaker_count"].max(),
             },
@@ -182,12 +184,14 @@ def write_meta_data(
                 row = {
                     "seed": seed,
                     **param_dict,
+                    "step": int(year / step_to_years),
                     "year": year,
                     "language_count": number_languages[i],
                     "internal_change": internal_changes[i],
                     "external_change": external_changes[i],
                     "speakers": language_speakers[i].tolist(),
                     "speaker_mean": float(language_speakers[i].mean()),
+                    "speaker_median": int(np.median(language_speakers[i])),
                     "speaker_min": int(language_speakers[i].min()),
                     "speaker_max": int(language_speakers[i].max()),
                     "convergences": convergences[i],

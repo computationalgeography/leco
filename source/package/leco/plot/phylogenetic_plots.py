@@ -24,7 +24,7 @@ def plot_phylogenies(
 ) -> None:
     """Plot phylogenetic trees; optionally show singleton (non-split) internal nodes."""
     n_trees = len(per_root_trees)
-    fig, axes = plt.subplots(n_trees, 1, figsize=(10, 3.5 * n_trees), constrained_layout=True)
+    fig, axes = plt.subplots(n_trees, 1, figsize=(10, 4.5 * n_trees), constrained_layout=True)
     if n_trees == 1:
         axes = [axes]
 
@@ -45,7 +45,6 @@ def plot_phylogenies(
         _draw_phylo_ax(
             ax,
             tree,
-            root_label,
             color,
             global_max_depth,
             speaker_size_extant,
@@ -53,7 +52,7 @@ def plot_phylogenies(
         )
 
     suffix = "_with_nodes" if show_singleton_nodes else ""
-    fig.savefig(output_path / f"Phylogenies{suffix}.png", bbox_inches="tight", dpi=150)
+    fig.savefig(output_path / f"Phylogenies{suffix}.pdf", bbox_inches="tight", dpi=150)
     plt.close(fig)
 
 
@@ -91,7 +90,7 @@ def draw_clade(
             str(n_speakers),
             va="center",
             ha="left",
-            fontsize=8,
+            fontsize=14,
             color=color,
         )
     else:
@@ -118,7 +117,6 @@ def draw_clade(
 def _draw_phylo_ax(
     ax: Axes,
     tree: BaseTree.Tree,
-    root_label: str,
     color: tuple[float, float, float, float],
     global_max_depth: float,
     speaker_size_extant: dict[int, int],
@@ -162,15 +160,20 @@ def _draw_phylo_ax(
 
     ax.set_xlim(-global_max_depth * 0.05, global_max_depth * 1.1)
     ax.set_ylim(-0.8, n_tips - 0.2)
-    ax.set_title(f"Root: {root_label}", loc="left", fontsize=11, fontweight="bold", color=color, pad=4)
+
     ax.set_yticks([])
     ax.spines[["left", "top", "right"]].set_visible(False)
-    ax.spines["bottom"].set_color("lightgrey")
-    ax.tick_params(axis="x", labelsize=8, colors="grey")
-    ax.set_xlabel("Time steps", fontsize=8, color="grey")
+    ax.spines["bottom"].set_color("grey")
+    ax.tick_params(axis="x", labelsize=14, colors="grey")
+    ax.set_xlabel("Time steps", fontsize=14, color="grey")
 
 
 ROOT_FAMILY_COLORS = [
+    # Transformed from rgb to rgba
+    (110 / 255, 169 / 255, 0.0, 1.0),  # olive green
+    (245 / 255, 153 / 255, 148 / 255, 1.0),  # cinnamon pink
+    (0.0, 138 / 255, 161 / 255, 1.0),  # turcoise
+    (204 / 255, 26 / 255, 151 / 255, 1.0),  # fucsia
     (0.894, 0.102, 0.110, 1.0),  # vivid red
     (0.216, 0.494, 0.722, 1.0),  # strong blue
     (0.302, 0.686, 0.290, 1.0),  # vivid green
@@ -183,28 +186,28 @@ ROOT_FAMILY_COLORS = [
 
 LANG_MARKERS = [
     "o",  # circle
+    "x",  # x (unfilled)
+    "+",  # plus (unfilled)
+    "<",  # triangle left
+    ">",  # triangle right
+    "|",  # vline
+    "_",  # hline
+    "*",  # star
+    "1",  # tri down (Y-shape)
+    "2",  # tri up
+    "3",  # tri left
+    "4",  # tri right
     "s",  # square
     "^",  # triangle up
     "D",  # diamond
     "v",  # triangle down
     "P",  # plus (filled)
     "X",  # x (filled)
-    "*",  # star
     "h",  # hexagon 1
     "p",  # pentagon
-    "<",  # triangle left
-    ">",  # triangle right
     "H",  # hexagon 2
     "d",  # thin diamond
     "8",  # octagon
-    "1",  # tri down (Y-shape)
-    "2",  # tri up
-    "3",  # tri left
-    "4",  # tri right
-    "+",  # plus (unfilled)
-    "x",  # x (unfilled)
-    "|",  # vline
-    "_",  # hline
 ]
 
 
@@ -281,7 +284,7 @@ def plot_spatial_families(
                 color="w",
                 markerfacecolor=color,
                 markersize=10,
-                label=f"Root {root}",
+                label=f"Family {root}",
                 markeredgecolor="grey",
             ),
         )
@@ -303,7 +306,7 @@ def plot_spatial_families(
     ax.get_xaxis().set_ticks([])
     ax.get_yaxis().set_ticks([])
 
-    plt.savefig(output_path / f"Phylospatial_step{time_step}.png", bbox_inches="tight", dpi=150)
+    plt.savefig(output_path / f"Phylospatial_step{time_step}.pdf", bbox_inches="tight", dpi=150)
     plt.close()
 
 
