@@ -12,6 +12,7 @@ pre-commit
 pyarrow
 SaLib
 scikit-learn
+scipy
 shapely
 sphinx
 tomli_w
