@@ -14,6 +14,9 @@ repos:
           - id: pyright
             additional_dependencies:
                 [
+                    Bio,
+                    build,
+                    datetime,
                     docopt,
                     frozendict,
                     geopandas,
@@ -21,8 +24,9 @@ repos:
                     networkx,
                     numpy,
                     pandas,
-                    SaLib,
-                    scikit-learn,
+                    pyarrow,
+                    scipy,
+                    shapely,
                     tomli_w,
                     tqdm,
                 ]
