@@ -11,6 +11,7 @@ pandas
 pre-commit
 pyarrow
 scipy
+scikit-learn
 shapely
 sphinx
 tomli_w

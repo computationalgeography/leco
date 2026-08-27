@@ -15,6 +15,7 @@ dependencies:
   - pandas
   - pre-commit
   - pyarrow
+  - scikit-learn
   - scipy
   - shapely
   - sphinx

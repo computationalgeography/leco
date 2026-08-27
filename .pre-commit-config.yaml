@@ -25,6 +25,7 @@ repos:
                     numpy,
                     pandas,
                     pyarrow,
+                    scikit-learn,
                     scipy,
                     shapely,
                     tomli_w,
