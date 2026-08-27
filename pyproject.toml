@@ -38,8 +38,6 @@ packages = ["source/package/leco"]
 [tool.ruff]
 line-length = 110
 exclude = [
-    ### sensitivity_analysis files are under development and might nog be needed
-    "source/package/leco/sensitivity_analysis",
     ## Unclear problem
     "documentation/",
 ]
@@ -47,10 +45,13 @@ exclude = [
 [tool.ruff.lint]
 select = ["ALL"]
 ignore = [
+    # Missing copyright notice at top of file
+    "CPY001",
     # 'print' statement found
     "T201",
     # too many arguments in function definition
     "PLR0913",
+    "PLR0917",
     # specifying long messages outside exception class      #WANT TO LEAVE VALUE ERRORS OUT EVENTUALLY ANYWAYS
     "TRY003",
     # allow magic variables to be defined

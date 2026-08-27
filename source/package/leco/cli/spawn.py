@@ -73,7 +73,7 @@ Example workflow:
 python {command} run --max_nr_workers=4 documentation/spawn.toml
 
 python {command} cluster --max_nr_workers=4 documentation/spawn.toml -- \
-    --method feed_forward --linkage average --distance 0.3
+    --linkage average --distance 0.3
 """
     arguments = docopt.docopt(usage, sys.argv[1:], version=version)
     max_nr_workers = int(arguments["--max_nr_workers"])

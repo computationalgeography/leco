@@ -9,7 +9,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib import ticker
-from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.patches import Patch
 from scipy import stats
@@ -24,27 +23,6 @@ def save_fig(fig: Figure, name: str, output_dir: Path) -> None:
     fig.savefig(output_dir / name, dpi=150, bbox_inches="tight")
     plt.close(fig)
     print(f"Saved {name}")
-
-
-def base_plot(
-    ax: Axes,
-    agg: pd.DataFrame,
-    x_col: str,
-    baseline_x: float,
-    ylabel: str,
-    variable: str,
-    parameter_labels: dict,
-) -> None:
-    """Shared scatter plot logic: median (circle) + min/max (triangles) + baseline vline."""
-    ax.axvline(baseline_x, color="darkgrey", linestyle="--", linewidth=1.3)
-    ax.scatter(agg[x_col], agg["median_val"], s=80, color="black", zorder=3, label="median")
-    ax.scatter(agg[x_col], agg["min_val"], s=80, color="#01204E", zorder=3, marker="^", label="Min")
-    ax.scatter(agg[x_col], agg["max_val"], s=80, color="#98C1D9", zorder=3, marker="^", label="Max")
-    ax.set_xlabel(parameter_labels.get(variable, variable), fontsize=24)
-    ax.set_ylabel(ylabel, fontsize=24)
-    ax.tick_params(axis="both", labelsize=20)
-    ax.legend(fontsize=16)
-    ax.grid(True, alpha=0.3)
 
 
 # ---------------------------------------------------------------------------
@@ -67,7 +45,7 @@ def filter_baseline(df: pd.DataFrame, baseline_values: dict | None) -> pd.DataFr
     return df
 
 
-def plot_seed_variance_base(
+def plot_seed_richness_base(
     df: pd.DataFrame,
     output_dir: Path,
     baseline_values: dict | None = None,
@@ -92,7 +70,7 @@ def plot_seed_variance_base(
         ax.plot(grouped.index, grouped.values, color=color, alpha=0.7, linewidth=1, label=f"Run {i + 1}")
 
     ax.set_xlabel("Time steps", size=22)
-    ax.set_ylabel("Number of Languages", size=22)
+    ax.set_ylabel("Number of languages", size=22)
     ax.tick_params(axis="both", labelsize=18)
     leg = ax.legend(loc="upper right", fontsize=16)
 
@@ -105,119 +83,109 @@ def plot_seed_variance_base(
     print("Saved seed_variance_base.pdf")
 
 
-def plot_speaker_dist_base(
+def _prepare_speaker_dist_histograms(
     df: pd.DataFrame,
-    output_dir: Path,
-    baseline_values: dict | None = None,
-    bin_number: int = 10,
-) -> None:
-    """Plot median speaker distribution for the last time step, averaged across seeds.
-
-    If baseline_values is provided, filters to that parameter combination first
-    (sensitivity mode). Otherwise uses all rows (baseline mode).
-    """
+    baseline_values: dict | None,
+    bin_number: int,
+) -> tuple[list, dict[int | str, np.ndarray], np.ndarray, np.ndarray]:
+    """Collect speaker counts and log-spaced histograms per seed at the final time step."""
     df = filter_baseline(df, baseline_values)
 
-    # Select final time step
     last_step = df["year"].max()
     df_last = df[(df["year"] == last_step) & (df["speakers"].notna())]
     seeds = sorted(df_last["seed"].unique())
 
-    # Collect all speakers per seed
-    speakers_by_seed = {}
+    speakers_by_seed: dict[int | str, np.ndarray] = {}
     for seed in seeds:
         df_seed = df_last[df_last["seed"] == seed]
         speakers_by_seed[seed] = np.concatenate(
             df_seed["speakers"].apply(ast.literal_eval).values,
         )
 
-    # Find the maximum number of speakers
     max_val = max(arr.max() for arr in speakers_by_seed.values())
-
-    # Divide the log-transformed speakers in even bins
     bins = np.logspace(np.log10(1), np.log10(max_val + 1), num=bin_number)
 
-    # Compute histograms for each seed
-    histograms = []
-    for seed in seeds:
-        hist, _ = np.histogram(speakers_by_seed[seed], bins=bins)
-        histograms.append(hist)
-    histograms = np.array(histograms)
+    histograms = np.array(
+        [np.histogram(speakers_by_seed[seed], bins=bins)[0] for seed in seeds],
+    )
 
-    # Get the median, minimum and maximum
-    median_hist = np.median(histograms, axis=0)
-    minimum = np.min(histograms, axis=0)
-    maximum = np.max(histograms, axis=0)
+    return seeds, speakers_by_seed, bins, histograms
 
-    ## Normal reference curve based on median and standard deviation of the log-transformed data
-    # Collect the median and standard deviation per seed
-    medians, sigmas = [], []
-    for seed in seeds:
-        log_speakers_seed = np.log10(speakers_by_seed[seed])
-        medians.append(np.median(log_speakers_seed))
-        sigmas.append(log_speakers_seed.std())
 
-    # Get the general median and standard deviation
-    median = np.median(medians)
-    sigma = np.median(sigmas)
+def _speaker_dist_normal_reference(
+    speakers: np.ndarray,
+    bins: np.ndarray,
+    peak_hist: float,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return x and y values for a seed-specific normal reference curve on log10 speakers."""
+    log_speakers = np.log10(speakers)
+    median_log = np.median(log_speakers)
+    sigma_log = log_speakers.std()
 
-    # Median number of languages per seed, used to scale curve height to match histogram counts
-    n_median = np.median(
-        [len(v) for v in speakers_by_seed.values()],
-    )  # median languages per seed per speaker number
-    bin_width_log = np.diff(np.log10(bins)).mean()
-
-    # Smooth curve spanning the same range as the histogram bins
     x_smooth_log = np.linspace(np.log10(bins[0]), np.log10(bins[-1]), 300)
-    pdf_vals = stats.norm.pdf(x_smooth_log, median, sigma)
-    expected_counts_smooth = pdf_vals * bin_width_log * n_median
-    x_smooth = 10**x_smooth_log
+    pdf_vals = stats.norm.pdf(x_smooth_log, median_log, sigma_log)
+    scale_peak = peak_hist if peak_hist > 0 else 1.0
+    expected_counts = pdf_vals / pdf_vals.max() * scale_peak
 
-    fig, ax = plt.subplots(figsize=(10, 6))
+    return 10**x_smooth_log, expected_counts
 
-    # Extend arrays to bin edges so the step line reaches the last bin's right edge
-    median_for_step = np.append(median_hist, median_hist[-1])
-    min_for_step = np.append(minimum, minimum[-1])
-    max_for_step = np.append(maximum, maximum[-1])
 
-    # median line
-    ax.step(
-        bins,
-        median_for_step,
-        where="post",
-        color="darkorange",
-        linewidth=2,
-        label="Median",
+def plot_speaker_dist_per_seed(
+    df: pd.DataFrame,
+    output_dir: Path,
+    baseline_values: dict | None = None,
+    bin_number: int = 10,
+) -> None:
+    """Plot one speaker-distribution histogram per seed at the final time step.
+
+    Each figure uses bar heights for that seed's bin counts, plus a seed-specific
+    normal reference line.
+    """
+    seeds, speakers_by_seed, bins, histograms = _prepare_speaker_dist_histograms(
+        df,
+        baseline_values,
+        bin_number,
     )
 
-    # IQR/min-max band
-    ax.fill_between(
-        bins,
-        min_for_step,
-        max_for_step,
-        step="post",
-        color="darkorange",
-        alpha=0.15,
-        label="Min/Max range",
-    )
+    bin_widths = np.diff(bins)
 
-    # log-normal curve
-    ax.plot(
-        x_smooth,
-        expected_counts_smooth,
-        color="black",
-        linestyle="--",
-        linewidth=1.5,
-        label="Normal distribution reference",
-    )
+    for seed_index, seed in enumerate(seeds):
+        hist = histograms[seed_index]
+        x_smooth, expected_counts = _speaker_dist_normal_reference(
+            speakers_by_seed[seed],
+            bins,
+            int(hist.max()),
+        )
 
-    ax.set_xscale("log")
-    ax.set_xlabel("Number of Agents Speaking a Language (log-transformed)", size=22)
-    ax.set_ylabel("Number of Languages", size=22)
-    ax.tick_params(axis="both", labelsize=18)
-    ax.legend(fontsize=16, loc="upper left")
-    fig.tight_layout()
-    save_fig(fig, "speaker_dist_baseline_median.pdf", output_dir)
+        fig, ax = plt.subplots(figsize=(10, 6))
+
+        ax.bar(
+            bins[:-1],
+            hist,
+            width=bin_widths,
+            align="edge",
+            color="darkorange",
+            alpha=0.7,
+            edgecolor="darkorange",
+        )
+
+        ax.plot(
+            x_smooth,
+            expected_counts,
+            color="black",
+            linestyle="--",
+            linewidth=1.5,
+            label="Normal distribution reference",
+        )
+
+        ax.set_xscale("log")
+        ax.set_xlabel("Number of agents speaking a language (log-transformed)", size=22)
+        ax.set_ylabel("Number of languages", size=22)
+        ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+        ax.tick_params(axis="both", labelsize=18)
+        ax.legend(fontsize=16, loc="upper left")
+        fig.tight_layout()
+        save_fig(fig, f"speaker_dist_seed_{seed}.pdf", output_dir)
 
 
 # ---------------------------------------------------------------------------
@@ -367,31 +335,6 @@ def plot_baseline_metrics_over_time(df: pd.DataFrame, output_dir: Path) -> None:
     save_fig(fig, "baseline_metrics_over_time.pdf", output_dir)
 
 
-def plot_baseline_boxplots(df: pd.DataFrame, output_dir: Path) -> None:
-    """Boxplot per metric across seeds for the last N time steps."""
-    # Only select the final time step
-    final_year = df["year"].max()
-    df_last = df[df["year"].isin([final_year])].copy()
-
-    metrics = [m for m in BASELINE_METRICS if m in df_last.columns]
-    fig, axes = plt.subplots(1, len(metrics), figsize=(4 * len(metrics), 5))
-
-    if len(metrics) == 1:
-        axes = [axes]
-
-    for ax, metric in zip(axes, metrics, strict=True):
-        seeds = sorted(df_last["seed"].unique())
-        data_per_seed = [df_last[df_last["seed"] == s][metric].dropna().to_numpy() for s in seeds]
-        ax.boxplot(data_per_seed, tick_labels=[f"S{s}" for s in seeds], patch_artist=True)
-        ax.set_title(METRIC_LABELS.get(metric, metric), fontsize=11)
-        ax.tick_params(axis="x", labelsize=9)
-        ax.grid(True, alpha=0.3)
-
-    fig.suptitle("Metric distributions per seed", fontsize=13)
-    fig.tight_layout()
-    save_fig(fig, "baseline_boxplots.pdf", output_dir)
-
-
 def create_baseline_plots(input_path: Path) -> None:
     """Entry point for baseline mode."""
     df = pd.read_csv(input_path)
@@ -399,10 +342,9 @@ def create_baseline_plots(input_path: Path) -> None:
     output_dir.mkdir(exist_ok=True)
 
     write_baseline_summary(df, output_dir)
-    plot_seed_variance_base(df, output_dir, baseline_values=None)
-    plot_speaker_dist_base(df, output_dir, baseline_values=None)
+    plot_seed_richness_base(df, output_dir, baseline_values=None)
+    plot_speaker_dist_per_seed(df, output_dir, baseline_values=None)
     plot_baseline_metrics_over_time(df, output_dir)
-    plot_baseline_boxplots(df, output_dir)
 
 
 # ---------------------------------------------------------------------------
@@ -443,7 +385,7 @@ def plot_classification_comparison(
     labels.append("Min/Max range")
 
     ax.set_xlabel("Time steps", size=24)
-    ax.set_ylabel("Number of Languages", size=24)
+    ax.set_ylabel("Number of languages", size=24)
     ax.tick_params(axis="both", labelsize=20)
     ax.legend(
         handles=handles,
@@ -506,95 +448,6 @@ def create_classification_plots(baseline_path: Path, classification_files: list[
 # ---------------------------------------------------------------------------
 
 
-def plot_state_variable(
-    df: pd.DataFrame,
-    variable: str,
-    state_variable: str,
-    baseline_values: dict,
-    output_dir: Path,
-    parameter_labels: dict,
-) -> None:
-    """Plot the language richness for each sensitivity parameter across all values."""
-    agg = (
-        df.groupby(variable)[state_variable]
-        .agg(median_val="median", min_val="min", max_val="max")
-        .reset_index()
-    )
-    fig, ax = plt.subplots(figsize=(8, 6))
-    base_plot(
-        ax,
-        agg,
-        variable,
-        baseline_values[variable],
-        f"Average Number of {state_variable}",
-        variable,
-        parameter_labels,
-    )
-    fig.tight_layout()
-    save_fig(fig, f"{state_variable}_{variable}.pdf", output_dir)
-
-
-def plot_change_proportion(
-    df: pd.DataFrame,
-    variable: str,
-    baseline_values: dict,
-    output_dir: Path,
-    parameter_labels: dict,
-) -> None:
-    """Plot the contribution of inter-communal changes for each sensitivity parameter across all values."""
-    df = df.copy()
-    df["change_prop"] = df["external_change"] / (df["external_change"] + df["internal_change"])
-    agg = (
-        df.groupby(variable)["change_prop"]
-        .agg(median_val="median", min_val="min", max_val="max")
-        .reset_index()
-    )
-
-    fig, ax = plt.subplots(figsize=(8, 6))
-    base_plot(
-        ax,
-        agg,
-        variable,
-        baseline_values[variable],
-        "Median proportion of change due to diffusion",
-        variable,
-        parameter_labels,
-    )
-    fig.tight_layout()
-    save_fig(fig, f"change_{variable}.pdf", output_dir)
-
-
-def plot_speakers(
-    df: pd.DataFrame,
-    variable: str,
-    baseline_values: dict,
-    output_dir: Path,
-    parameter_labels: dict,
-) -> None:
-    """Plot the median number of speakers per language for each sensitivity parameter across all values."""
-    agg = (
-        df.groupby(variable)
-        .agg(
-            median_val=("speaker_median", "median"),
-            min_val=("speaker_min", "min"),
-            max_val=("speaker_max", "max"),
-        )
-        .reset_index()
-    )
-    fig, ax = plt.subplots(figsize=(8, 6))
-    base_plot(
-        ax,
-        agg,
-        variable,
-        baseline_values[variable],
-        "Number of speakers per language",
-        variable,
-        parameter_labels,
-    )
-    fig.tight_layout()
-    save_fig(fig, f"speaker_{variable}.pdf", output_dir)
-
-
 def plot_spider_combo(
     df: pd.DataFrame,
     baseline_values: dict,
@@ -603,7 +456,7 @@ def plot_spider_combo(
     parameter_names: list[str],
 ) -> None:
     """Create a spider plot for parameters of the sensitivity analysis, including confidence intervals."""
-    fig, ax = plt.subplots(figsize=(12, 8))
+    fig, ax = plt.subplots(figsize=(12, 10))
     tab10 = plt.colormaps.get_cmap("tab10")
     colors = tab10.colors[: len(parameter_names)]
 
@@ -633,8 +486,8 @@ def plot_spider_combo(
     handles.append(ci_patch)
     labels.append("Min/Max range")
 
-    ax.set_xlabel("Parameter Multiplication Factor (1 = baseline)", size=26)
-    ax.set_ylabel("Number of Languages", size=26)
+    ax.set_xlabel("Parameter multiplication factor (1 = baseline)", size=26)
+    ax.set_ylabel("Number of languages", size=26)
     ax.tick_params(axis="both", labelsize=22)
     ax.legend(
         handles=handles,
@@ -735,8 +588,6 @@ def plot_parameter_effects(
 
 def create_sensitivity_plots(input_path: Path) -> None:
     """Entry point for sensitivity mode."""
-    parameter_names = ["mutation_rate", "diffusion_rate", "radius", "similarity_preference", "speed"]
-
     parameter_labels = {
         "speed": "Migration speed",
         "mutation_rate": "Intra-communal change probability",
@@ -751,7 +602,7 @@ def create_sensitivity_plots(input_path: Path) -> None:
         "radius",
         "similarity_preference",
         "speed",
-    ]  # Can be removed
+    ]
 
     baseline_values = {
         "speed": 10,
@@ -770,27 +621,10 @@ def create_sensitivity_plots(input_path: Path) -> None:
     final_year = df_og["year"].max()
     df = df_og[df_og["year"].isin([final_year])].copy()
 
-    for variable in parameter_names:
-        other_params = [p for p in parameter_names if p != variable]
-        mask = pd.Series(True, index=df.index, dtype=bool)
-        for other in other_params:
-            mask &= np.isclose(df[other], baseline_values[other])
-        df_var = df[mask].copy()
-
-        if df_var.empty:
-            print(f"No rows found for variable '{variable}', skipping.")
-            continue
-
-        plot_state_variable(df_var, variable, "language_count", baseline_values, output_dir, parameter_labels)
-        plot_state_variable(df_var, variable, "divergences", baseline_values, output_dir, parameter_labels)
-        plot_state_variable(df_var, variable, "convergences", baseline_values, output_dir, parameter_labels)
-        plot_change_proportion(df_var, variable, baseline_values, output_dir, parameter_labels)
-        plot_speakers(df_var, variable, baseline_values, output_dir, parameter_labels)
-
     plot_spider_combo(df, baseline_values, output_dir, parameter_labels, plot_parameter_order)
-    plot_seed_variance_base(df_og, output_dir, baseline_values=baseline_values)
+    plot_seed_richness_base(df_og, output_dir, baseline_values=baseline_values)
     plot_parameter_effects(df_og, baseline_values, output_dir, plot_parameter_order, parameter_labels)
-    plot_speaker_dist_base(df, output_dir, baseline_values=baseline_values)
+    plot_speaker_dist_per_seed(df, output_dir, baseline_values=baseline_values)
 
 
 # ---------------------------------------------------------------------------

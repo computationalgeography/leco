@@ -49,12 +49,14 @@ To run the `leco` model, type this command:
 
 ```bash
 cd leco
-PYTHONPATH=source/package python source/script/leco_model.py run configuration.toml directory
+PYTHONPATH=source/package python source/script/leco_model.py run [--start_geoparquet steps201-400.geoparquet] [--intermediate_step 350] configuration.toml directory
 ```
 
-The run command requires a configuration file in toml format of which details can be found below. The user is also required to provide a path to a non-existing directory where the output will be stored. The standard run generates .geoparquet files of the population data, including agents ids, positions and language profiles, for every time step. A copy is created of the configuration file within the output directory.
+The run command requires a configuration file in toml format of which details can be found below. The user is also required to provide a path to a non-existing directory where the output will be stored. The standard run generates .geoparquet files of the population data, including agents ids, positions and language profiles, for every write_interval number of time steps, as defined in the configuration file. A copy is created of the configuration file within the output directory.
 
-## Configuration file
+Instead of initializing a specific number of languages at the start of the run, the user can choose to take another run at any point in time as a starting point. This can be indicated by defining which geoparquet file, with `--start_geoparquet`, and which time step, with `--intermediate_step`, to start from.
+
+### Configuration file
 
 The simulation requires a TOML configuration file to set up the parameters to run the `leco` model. This file should include the following parameters:
 
@@ -63,6 +65,7 @@ The simulation requires a TOML configuration file to set up the parameters to ru
 agents = 5
 steps = 20
 seed = 51
+write_interval = 200
 nr_start_languages = 5
 
 [space]
@@ -85,7 +88,7 @@ speed = 20
 [language]
 meanings = 100
 forms = 120
-mutation_rate = 0.01
+mutation_rate = 0.001
 
 [population_dynamics]
 death_rate = 0.01
@@ -101,29 +104,95 @@ diffusion_rate = 0.01
 similarity_preference = 0.2
 ```
 
-Different scenario's can be chosen at initialization of the model. When init_subset_area is set to false, initial positions of the agents are randomly distributed across the entire space. Otherwise initial positions are confined to the subset area, for which the x and y ranges can be specified with init_x and init_y. A user can additionally specify the number of initial languages and agents. In case this value is not the same, the start languages are evenly distributed across the initial agents.
+The same file is used as input for the cluster command.
 
-A spatial barrier can be specified by setting the ranges for both x and y values. The bar_impermeability parameter determines the degree of hinder as opposed by the barrier, ranging from 0 to 1 whereby a value of 0 means no hinder and a value of 1 complete blockage. The impermeability is used to proportionally decrease the probability of an agent to move and interact across the barrier. When an agent at first try is not allowed to pass the barrier, it will remain at it's previous position.
+Population dynamics can follow constant birth and death rates as determined in the configuration file by setting the logistic_growth boolean to false. If logistic_growth is set to true, the number of agents will increase to carrying capacity within a time period of `end_growth_time` following a logistic growth curve with a constant death rate as configured. For further clarification on the parameters, please refer to *the paper*.
 
-Population dynamics can follow constant birth and death rates as determined in the configuration file by setting the logistic_growth boolean to false. If logistic_growth is set to true, the number of agents will increase following a logistic growth curve with a constant death rate as configured. The carrying capacity K is determined by the number of agents * the multiplier as specified in the configuration file. Furthermore, the user can specify the duration of the logistic growth from the first time step until the end_growth_time step.
+## Post-processing
 
-## Post-processing options
-
-The `leco` package provides several options of post-processing the data. The language profiles of the agents can be classified into languages with the classify option:
+As a post-processing step, the language profiles of the agents can be classified into languages with the cluster command:
 
 ```bash
 cd leco
-PYTHONPATH=source/package python source/script/leco_model.py cluster [--method <all|feed_forward>] [--distance <distance_threshold>] directory
+PYTHONPATH=source/package python source/script/leco_model.py cluster [--linkage average] [--distance 0.3] [--start_gpkg population_base.gpkg] [--intermediate_step 350] configuration.toml directory population.gpkg
 ```
 
-The clustering step uses the .geoparquet files from the output directory created during the run as input and creates a .gpkg file as output containing the entire agent population across all time steps. There are two clustering methods available, of which the default is set at 'all'. The 'all' clustering method takes all language profiles across all time steps and clusters these using hierarchical clustering. The 'feed_forward' method starts from the first time step and uses diversification and shift processes from a evolutionary perspective to determine clusters of languages. The latter one is therefore more theory based. The --distance argument can be used to specify the distance threshold used for language classification. This is optional and the default is set at a value of 0.3.
+The cluster command uses the .geoparquet files that are located in the defined directory and which were created during the run, as input and creates a .gpkg file as output containing the entire agent population across all time steps. This command makes use of the *AgglomerativeClustering* function of the scikit-learn package [AgglomerativeClustering — scikit-learn 1.9.0 documentation](https://scikit-learn.org/stable/modules/generated/sklearn.cluster.AgglomerativeClustering.html), which is a form of unsupervised clustering. The user can define the linkage (default: average) and the distance threshold (default: 0.3) used for the clustering. When a run uses `--start_geoparquet` and `--intermediate_step`, pass the same time step to cluster via `--intermediate_step`, together with the warm-up run’s clustered output via `--start_gpkg`. Clustering then continues from those existing language assignments instead of starting over at time step 0.
 
-Other post-processing options regard creating plots of the output data. This will generate different plots, including the number of languages over time, the number of agents per language over time, an animated plot of the agents positions over time, a 3D interactive plot and a phylogeny.
+In addition, the `leco` package includes scripts to visualize the outcomes of a single run with the plot command:
 
 ```bash
 cd leco
-PYTHONPATH=source/package python source/script/leco_model.py plot [--debug] configuration.toml population.gpkg
+PYTHONPATH=source/package python source/script/leco_model.py plot configuration.toml population.gpkg
 ```
+
+This will generate different plots, including the number of languages over time, the number of agents per language over time, an animated plot of the agents positions over time, a 3D interactive plot, a phylogeny of the different language families, and the spatial distribution of languages and families at different points in time.
+
+## Spawn
+
+To run multiple runs in parallel, the spawn command can be used for the run and cluster commands as follows.
+
+```bash
+cd leco
+PYTHONPATH=source/package python source/script/leco_spawn.py run --max_nr_workers=8 spawn.toml [-- additional arguments]
+```
+
+```bash
+cd leco
+PYTHONPATH=source/package python source/script/leco_spawn.py cluster --max_nr_workers=8 spawn.toml [-- additional arguments]
+```
+
+### Spawn configuration
+
+The spawn.toml configuration file is organized as follows.
+
+```toml
+# Regular Leco model configuration file
+configuration_file = "configuration.toml"
+
+# Template to use for generating output directory pathnames. All variable parameters must be mentioned.
+directory_pattern = "~/tmp/spawn/speed_{speed}/mutation_rate_{mutation_rate}/radius_{radius}/diffusion_rate_{diffusion_rate}/similarity_preference_{similarity_preference}/seed_{seed}"
+
+[sensitivity.run]
+# Section with settings for performing a sensitivity analysis
+method = "ofat" # One factor at a time
+
+[sensitivity.run.initialization]
+seed.range = [51, 53, 1]
+
+[sensitivity.run.movement]
+speed.range = [12, 22, 2]
+
+[sensitivity.run.language]
+mutation_rate.range = [0.0001, 0.0005, 0.0001]
+
+[sensitivity.run.interaction]
+radius.range = [10, 50, 10]
+diffusion_rate.range = [0.05, 0.1, 0.01]
+similarity_preference.range = [-1.0, 1.2, 0.2]
+```
+
+The spawn command is designed for running sensitivity analyses, during which the values of different parameters are systematically varied. Currently, the one-factor-at-a-time sensitivity analysis is the single method that is incorporated, meaning that only one of the parameters is varied at a time. Baseline values are taken from the regular `leco` configuration file that is defined in the top line. The range within which parameters are varied, are defined in the spawn.toml, as [minimum, maximum, step].
+
+## Analysis of multiple runs
+
+The results of multiple `leco` runs and classifications can be summarized using the script `leco_summarized.py`.
+
+```bash
+cd leco
+PYTHONPATH=source/package python environment/script/leco_summarized.py directory [--baseline]
+```
+
+This summarizes multiple output metrics across different parameter combinations as created by `spawn`. When setting the `--baseline` argument, it only summarizes the output metrics for different seeds of a single parameter combination. The metrics are written to a csv file.
+
+The summarized values can be visualized with the `summarized_plots.py`.
+
+```bash
+cd leco
+PYTHONPATH=source/package python environment/script/summarized_plots.py summarized.csv [--baseline] [--classification single:single_summarized.csv complete:complete_summarized.csv]
+```
+
+This will generate a spider plot of the effect of different parameters on the number of languages, as well as several plots to visualize the number of languages and speaker distribution for the baseline parameter combination. When setting the `--baseline` argument, and providing the summarized .csv file generated with the  `--baseline` argument in `leco_summarized.py,` it will generate summary tables for the output metrics, plots of these metrics over time, and baseline plots on language number and speaker distribution. Alternatively, the `--classification` argument allows for comparison of multiple summarized files created with the `--baseline` argument. This way, the outputs of a single parameter combination for different language classification configurations can be compared. The command above shows an example of how to compare the summarized files of two different types of linkages, by giving first the name and then the path to the csv file. The `--classification` argument generates a summary table and a plot showing the number of languages over time.
 
 ## Create wheel file
 

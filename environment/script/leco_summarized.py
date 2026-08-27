@@ -250,10 +250,10 @@ def process_all(directory_path: Path, baseline: bool = False) -> None:
         stats_df["seed"] = stats_df["seed"].astype(str)
         phylo_df["seed"] = phylo_df["seed"].astype(str)
         stats_df = stats_df.merge(phylo_df, on="seed", how="left")
-        output_path = directory_path / "spawn_base_stats.csv"
+        output_path = directory_path / "base_stats.csv"
         stats_df.to_csv(output_path, index=False)
     else:
-        output_path = directory_path / "spawn_combined_stats.csv"
+        output_path = directory_path / "spawn_stats.csv"
 
     stats_df.to_csv(output_path, index=False)
 
