@@ -723,8 +723,14 @@ def diversify(
         ]
 
     # Save output to a single gpkg file
+    output_path = directory / gpkg_file_name
+    if output_path.suffix == "":
+        # Add .gpkg suffix to output path if not present
+        output_path = output_path.with_suffix(".gpkg")
+        logger.warning("Warning: adding .gpkg suffix to output path: %s", output_path)
+
     pd.concat(population_total, ignore_index=True).to_file(
-        directory / gpkg_file_name,
+        output_path,
         driver="GPKG",
     )
 
