@@ -68,8 +68,6 @@ ignore = [
     "FBT003",
     # Use a regular 'assert' instead of unittest-style 'assertNotIn'
     "PT009",
-    # Shebang is present but file is not executable; discuss with Kor
-    "EXE001",
     "EM101",
     "EM102",
     "S101",
