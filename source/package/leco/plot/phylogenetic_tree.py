@@ -252,17 +252,13 @@ def build_newick_trees_per_root(ancestry_chains: dict) -> dict[str, str]:
     return trees
 
 
-def create_phylogeny(input_file: Path, time_steps: int) -> None:
+def create_phylogeny(directory: Path, population: gpd.GeoDataFrame, time_steps: int) -> None:
     """Create a phylogenetic tree for a single run based on vertical transmission."""
-    # Read in the population data across all time steps
-    population = gpd.read_file(input_file)
-    output_path = input_file.parent
-
     phylogeny_info = postprocess_phylogeny(population)
     t_birth_map = dict(zip(phylogeny_info["language"], phylogeny_info["t_birth"], strict=True))
 
     # Save phylogenetic data to csv file
-    phylogeny_info.to_csv(output_path / "phylogeny_information.csv", index=False)
+    phylogeny_info.to_csv(directory / "phylogeny_information.csv", index=False)
     ancestry_chains = build_ancestry_chains(phylogeny_info, time_steps, t_birth_map)
 
     # Build Newick trees for different roots
@@ -274,4 +270,4 @@ def create_phylogeny(input_file: Path, time_steps: int) -> None:
         if clean_root == "":
             clean_root = "unknown_root"
         file_name = f"phylogenetic_tree_root_{clean_root}.newick"
-        (output_path / file_name).write_text(root_newick, encoding="utf-8")
+        (directory / file_name).write_text(root_newick, encoding="utf-8")

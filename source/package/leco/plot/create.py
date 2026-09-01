@@ -7,8 +7,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import ListedColormap
 
-from .animation import plot_animation
-from .interactive_3d import plot_3d_fig
 from .phylogenetic_plots import visualize_phylogenies
 from .phylogenetic_tree import create_phylogeny
 from .summary import plot_summaries
@@ -49,25 +47,19 @@ def create_colormap(
 
 
 def plot(
-    data: Path,
+    directory: Path,
+    gpkg_file_name: str,
     parameters: dict,
-    local: bool = False,
     k_steps: int = 4,
 ) -> None:
     """Create plots of the leco model output."""
-    population = gpd.read_file(data)
+    population = gpd.read_file(directory / gpkg_file_name)
 
     cmap, lang_to_index = create_colormap(population.language, parameters["initialization"]["seed"])
 
-    plot_summaries(data, cmap, lang_to_index)
+    plot_summaries(directory, population, cmap, lang_to_index)
 
-    create_phylogeny(data, parameters["initialization"]["steps"])
+    create_phylogeny(directory, population, parameters["initialization"]["steps"])
     # Select equally distributed steps that you want to visualize spatial distribution of based on k_steps
     steps = np.round(np.linspace(0, parameters["initialization"]["steps"], num=k_steps)).astype(int).tolist()
-    visualize_phylogenies(data.parent, steps, population)
-
-    if local:
-        # Creates interactive plot so only use this when running locally
-        plot_3d_fig(data, cmap)
-        # Create animation plot
-        plot_animation(data, parameters, cmap)
+    visualize_phylogenies(directory, population, steps)

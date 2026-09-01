@@ -29,6 +29,8 @@ cd leco
 source .venv/bin/activate
 ```
 
+
+
 ### Using Conda
 
 TODO
@@ -42,6 +44,8 @@ running the tests is:
 cd leco
 PYTHONPATH=source/package python source/test/run_all_tests.py
 ```
+
+
 
 ## Run
 
@@ -123,10 +127,10 @@ In addition, the `leco` package includes scripts to visualize the outcomes of a 
 
 ```bash
 cd leco
-PYTHONPATH=source/package python source/script/leco_model.py plot configuration.toml population.gpkg
+PYTHONPATH=source/package python source/script/leco_model.py plot configuration.toml directory population.gpkg
 ```
 
-This will generate different plots, including the number of languages over time, the number of agents per language over time, an animated plot of the agents positions over time, a 3D interactive plot, a phylogeny of the different language families, and the spatial distribution of languages and families at different points in time.
+This will generate different plots, including the number of languages over time, the number of agents per language over time, a phylogeny of the different language families, and the spatial distribution of languages and families at different points in time.
 
 ## Spawn
 
@@ -141,6 +145,8 @@ PYTHONPATH=source/package python source/script/leco_spawn.py run --max_nr_worker
 cd leco
 PYTHONPATH=source/package python source/script/leco_spawn.py cluster --max_nr_workers=8 spawn.toml [-- additional arguments]
 ```
+
+
 
 ### Spawn configuration
 
@@ -208,6 +214,8 @@ The resulting wheel file can be installed like this:
 ```bash
 pip3 install -f $HOME/tmp/dist leco
 ```
+
+
 
 ## Generate documentation
 

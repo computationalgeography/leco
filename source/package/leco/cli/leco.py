@@ -14,6 +14,16 @@ from ..plot.create import plot
 from ..version import __version__ as version
 from .main import main_function
 
+logger = logging.getLogger(__name__)
+
+
+def ensure_gpkg_suffix(gpkg_file_name: str) -> str:
+    """Add a .gpkg suffix when the file name has no extension."""
+    if "." not in gpkg_file_name:
+        gpkg_file_name += ".gpkg"
+        logger.warning("Warning: adding .gpkg suffix to geopackage file name")
+    return gpkg_file_name
+
 
 def check_intermediate_start(intermediate_start: Path, intermediate_step: int) -> None:
     """Check if intermediate_start file contains the step of interest."""
@@ -52,7 +62,7 @@ def cluster_languages(arguments: dict, configuration: dict) -> None:
     linkage = arguments["--linkage"]
     distance_threshold = float(arguments["--distance"])
     directory = Path(arguments["<directory>"])
-    gpkg_file_name = arguments["<gpkg_file_name>"]
+    gpkg_file_name = ensure_gpkg_suffix(arguments["<gpkg_file_name>"])
 
     diversify(
         directory,
@@ -70,8 +80,9 @@ def cluster_languages(arguments: dict, configuration: dict) -> None:
 
 def plot_results(arguments: dict, configuration: dict) -> None:
     """Create plots of the leco model output."""
-    gpkg_file_path = Path(arguments["<gpkg_file>"])
-    plot(gpkg_file_path, configuration)
+    directory = Path(arguments["<directory>"])
+    gpkg_file_name = ensure_gpkg_suffix(arguments["<gpkg_file_name>"])
+    plot(directory, gpkg_file_name, configuration)
 
 
 def load_configuration(configuration_file_path: Path) -> dict:
@@ -101,7 +112,8 @@ Usage:
         [--distance <distance_threshold>] [--start_gpkg <gpkg_file>]
         [--intermediate_step <step>] <configuration_file> <directory>
         <gpkg_file_name>
-    {command} plot [--debug] <configuration_file> <gpkg_file>
+    {command} plot [--debug] <configuration_file> <directory>
+        <gpkg_file_name>
 
 Options:
 -h --help                             Show this screen and exit
@@ -111,11 +123,9 @@ Options:
 <directory>                           Directory to store/read the output
 --distance <distance_threshold>       Distance threshold to set clusters
                                       [default: 0.3]
-<gpkg_file>                           Path to a gpkg file created during
-                                      clustering
-<gpkg_file_name>                      Name of the gpkg file to create
-                                      which will be stored in the
-                                      <directory>
+<gpkg_file_name>                      Name of the GPKG file (without path)
+                                      to create or read. The file is
+                                      always expected to be in <directory>
 --start_gpkg <gpkg_file>              Path to file with intermediate
                                       population configuration
 --start_geoparquet <geoparquet_file>  Path to file with intermediate
@@ -128,7 +138,7 @@ Options:
 Typical workflow:
     {command} run configuration.toml results
     {command} cluster --distance 0.2 results/configuration.toml results population.gpkg
-    {command} plot results/configuration.toml results/population.gpkg
+    {command} plot results/configuration.toml results population.gpkg
 """
 
 

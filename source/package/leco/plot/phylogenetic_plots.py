@@ -310,18 +310,18 @@ def plot_spatial_families(
     plt.close()
 
 
-def read_newick_trees(input_dir: Path) -> dict[str, str]:
+def read_newick_trees(directory: Path) -> dict[str, str]:
     """Read Newick tree format and sets to dictionary."""
     return {
-        path.stem: path.read_text(encoding="utf-8").strip() for path in sorted(input_dir.glob("*.newick"))
+        path.stem: path.read_text(encoding="utf-8").strip() for path in sorted(directory.glob("*.newick"))
     }
 
 
-def visualize_phylogenies(input_dir: Path, time_steps: list[int], population: gpd.GeoDataFrame) -> None:
+def visualize_phylogenies(directory: Path, population: gpd.GeoDataFrame, time_steps: list[int]) -> None:
     """Visualize the phylogenetic relations in phylogenies and spatial plots."""
     # Read in the Newick trees
-    per_root_trees = read_newick_trees(input_dir)
-    phylogeny_information = pd.read_csv(input_dir / "phylogeny_information.csv")
+    per_root_trees = read_newick_trees(directory)
+    phylogeny_information = pd.read_csv(directory / "phylogeny_information.csv")
 
     for step in time_steps:
         step_population = gpd.GeoDataFrame(
@@ -337,11 +337,11 @@ def visualize_phylogenies(input_dir: Path, time_steps: list[int], population: gp
             .set_index("language")["root_language"]
             .to_dict()
         )
-        plot_spatial_families(step_population, input_dir, step, lang_to_root)
+        plot_spatial_families(step_population, directory, step, lang_to_root)
 
         # If this is final step, create the phylogenies of the extant languages
         if step == max(time_steps):
             # Find speaker sizes of extant languages (present at final time step)
             speaker_size_extant = step_population.groupby("language")["id"].count().to_dict()
-            plot_phylogenies(per_root_trees, input_dir, speaker_size_extant, True)
-            plot_phylogenies(per_root_trees, input_dir, speaker_size_extant, False)
+            plot_phylogenies(per_root_trees, directory, speaker_size_extant, True)
+            plot_phylogenies(per_root_trees, directory, speaker_size_extant, False)
