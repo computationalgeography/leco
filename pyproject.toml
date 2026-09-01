@@ -39,7 +39,7 @@ packages = ["source/package/leco"]
 line-length = 110
 exclude = [
     ## Unclear problem
-    "documentation/",
+    #"documentation/",
 ]
 
 [tool.ruff.lint]

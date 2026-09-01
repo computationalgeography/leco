@@ -6,7 +6,6 @@ from typing import cast
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
-import numpy.typing as npt
 import pandas as pd
 from matplotlib.colors import ListedColormap
 
@@ -119,64 +118,16 @@ def language_speakers_plot(
     plt.close()
 
 
-def calculate_linguistic_similarity_pairwise(
-    profile_a: npt.NDArray[np.int64],
-    profile_b: npt.NDArray[np.int64],
-) -> float:
-    """Calculate the similarity between two language profiles."""
-    # Count the number of meanings with the same form
-    matching_meanings = np.sum(profile_a == profile_b)
-    # Similarity is the proportion of matching meanings
-    return matching_meanings / len(profile_a)
-
-
-def speaker_distribution_plot(
-    final_population: gpd.GeoDataFrame,
-    output_path: Path,
-    speaker_bin_size: int = 10,
-) -> None:
-    """Create a histogram of the frequency of languages by number of speakers at final time step."""
-    # Calculate the speakers_per_language
-    speakers_per_language = final_population.groupby("language")["id"].count().to_numpy()
-    if speakers_per_language.size == 0:
-        return
-
-    max_speakers = int(speakers_per_language.max())
-    bins = np.arange(0, max_speakers + speaker_bin_size, speaker_bin_size)
-    if bins.size < 2:
-        bins = np.array([0, speaker_bin_size])
-
-    fig, ax = plt.subplots(figsize=(10, 6))
-    ax.hist(
-        speakers_per_language,
-        bins=cast("list[float]", bins),
-        color="steelblue",
-        alpha=0.75,
-        edgecolor="black",
-    )
-    ax.set_title("Speaker Distribution at Final Timestep", size=16)
-    ax.set_xlabel("Number of Agents Speaking a Language", size=14)
-    ax.set_ylabel("Frequency (Number of Languages)", size=14)
-    ax.tick_params(axis="both", labelsize=11)
-    plt.tight_layout()
-    fig.savefig(output_path / "speaker_distribution_final_step.png", dpi=150)
-    plt.close()
-
-
 def plot_summaries(
-    input_file: Path,
+    directory: Path,
+    population: gpd.GeoDataFrame,
     cmap: ListedColormap,
     lang_to_index: dict[int, int],
 ) -> None:
     """Create summarizing plots of the leco model output."""
-    # Read in the population data across all time steps
-    population = gpd.read_file(input_file)
-
-    output_path = input_file.parent
-
     # Create a figure showing the number of languages over time
     number_languages = population.groupby("time_step")["language"].nunique().tolist()
-    language_number_plot(output_path, number_languages)
+    language_number_plot(directory, number_languages)
 
     # Create a figure showing the number of agents speaking a language over time
     language_speakers = population.pivot_table(
@@ -186,13 +137,4 @@ def plot_summaries(
         aggfunc="count",
         fill_value=0,
     )
-    language_speakers_plot(language_speakers, output_path, cmap, lang_to_index)
-
-    # Create a figure showing the frequency distribution of agents speaking a language at last time step
-    final_step = int(cast("int", population["time_step"].max()))
-    last_step_population = gpd.GeoDataFrame(
-        population[population["time_step"] == final_step],
-        geometry=population.geometry.name,
-        crs=population.crs,
-    )
-    speaker_distribution_plot(last_step_population, output_path)
+    language_speakers_plot(language_speakers, directory, cmap, lang_to_index)
