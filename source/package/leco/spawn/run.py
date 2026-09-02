@@ -22,9 +22,9 @@ def run_(arguments: tuple[tuple[dict, Path], list[str]]) -> None:
             usage(),
             [
                 "run",
-                *subcommand_arguments,
                 str(configuration_file_path),
                 str(directory_path),
+                *subcommand_arguments,
             ],
         )
 

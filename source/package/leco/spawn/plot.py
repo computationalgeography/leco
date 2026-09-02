@@ -14,10 +14,6 @@ def plot_(arguments: tuple[tuple[dict, Path], list[str]]) -> None:
     configuration_path_tuple, subcommand_arguments = arguments
     configuration, directory_path = configuration_path_tuple
 
-    # NOTE: Get rid of this hack, see GH issue 39
-    assert len(subcommand_arguments) == 1, "Expected name of geopackage"
-    geopackage_path = directory_path / subcommand_arguments[0]
-
     with tempfile.NamedTemporaryFile(delete_on_close=False) as file:
         tomli_w.dump(configuration, file)
         file.close()
@@ -27,9 +23,8 @@ def plot_(arguments: tuple[tuple[dict, Path], list[str]]) -> None:
             [
                 "plot",
                 str(configuration_file_path),
-                str(geopackage_path),
-                # NOTE: See GH issue 39
-                # *subcommand_arguments,
+                str(directory_path),
+                *subcommand_arguments,
             ],
         )
 
