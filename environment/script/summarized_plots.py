@@ -2,6 +2,7 @@
 
 import argparse
 import ast
+import logging
 from pathlib import Path
 from typing import cast
 
@@ -13,6 +14,8 @@ from matplotlib.figure import Figure
 from matplotlib.patches import Patch
 from scipy import stats
 
+logger = logging.getLogger(__name__)
+
 # ---------------------------------------------------------------------------
 # Shared utilities
 # ---------------------------------------------------------------------------
@@ -20,9 +23,9 @@ from scipy import stats
 
 def save_fig(fig: Figure, name: str, output_dir: Path) -> None:
     """Save figure and close it."""
-    fig.savefig(output_dir / name, dpi=150, bbox_inches="tight")
+    fig.savefig(output_dir / name, dpi=500, bbox_inches="tight")
     plt.close(fig)
-    print(f"Saved {name}")
+    logger.info("Saved %s", name)
 
 
 # ---------------------------------------------------------------------------
@@ -78,9 +81,7 @@ def plot_seed_richness_base(
         legobj.set_linewidth(3.0)  # type: ignore[arg-type]
     fig.tight_layout()
 
-    fig.savefig(output_dir / "seed_variance_base.pdf", dpi=500, bbox_inches="tight")
-    plt.close()
-    print("Saved seed_variance_base.pdf")
+    save_fig(fig, "seed_variance_base.pdf", output_dir)
 
 
 def _prepare_speaker_dist_histograms(
@@ -112,20 +113,55 @@ def _prepare_speaker_dist_histograms(
     return seeds, speakers_by_seed, bins, histograms
 
 
-def _speaker_dist_normal_reference(
+""" def _speaker_dist_normal_reference(
     speakers: np.ndarray,
     bins: np.ndarray,
     peak_hist: float,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Return x and y values for a seed-specific normal reference curve on log10 speakers."""
+    "Return x and y values for a seed-specific normal reference curve on log10 speakers."
     log_speakers = np.log10(speakers)
-    median_log = np.median(log_speakers)
+    median_log = np.mean(log_speakers)  # np.median(log_speakers)
     sigma_log = log_speakers.std()
 
     x_smooth_log = np.linspace(np.log10(bins[0]), np.log10(bins[-1]), 300)
     pdf_vals = stats.norm.pdf(x_smooth_log, median_log, sigma_log)
     scale_peak = peak_hist if peak_hist > 0 else 1.0
     expected_counts = pdf_vals / pdf_vals.max() * scale_peak
+
+    return 10**x_smooth_log, expected_counts """
+
+
+def _speaker_dist_normal_reference(
+    speakers: np.ndarray,
+    bins: np.ndarray,
+    n_sigma: float = 3.0,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return x and y values for a seed-specific normal reference curve on log10 speakers.
+
+    The curve's domain extends to the model's population cap (rather than
+    stopping at the data's observed max), so any gap between predicted and
+    observed mass near the cap is visible.
+    """
+    log_speakers = np.log10(speakers)
+    mu_log = log_speakers.mean()
+    sigma_log = log_speakers.std()
+
+    """ log_bins = np.log10(bins)
+    bin_width_log = log_bins[1] - log_bins[0]
+    n = len(speakers)
+
+    x_smooth_log = np.linspace(log_bins[0], log_bins[-1], 300)
+    expected_counts = n * bin_width_log * stats.norm.pdf(x_smooth_log, mu_log, sigma_log) """
+
+    log_bins = np.log10(bins)
+    bin_width_log = log_bins[1] - log_bins[0]
+    n = len(speakers)
+
+    half_range = n_sigma * sigma_log
+    lower = max(mu_log - half_range, 0.0)  # can't go below 1 agent (log10(1) = 0)
+    x_smooth_log = np.linspace(lower, mu_log + half_range, 300)
+
+    expected_counts = n * bin_width_log * stats.norm.pdf(x_smooth_log, mu_log, sigma_log)
 
     return 10**x_smooth_log, expected_counts
 
@@ -154,7 +190,6 @@ def plot_speaker_dist_per_seed(
         x_smooth, expected_counts = _speaker_dist_normal_reference(
             speakers_by_seed[seed],
             bins,
-            int(hist.max()),
         )
 
         fig, ax = plt.subplots(figsize=(10, 6))
@@ -265,7 +300,7 @@ def write_baseline_summary(df: pd.DataFrame, output_dir: Path) -> None:
     wide_df = pd.DataFrame(wide_rows)
     wide_path = output_dir / "baseline_summary_per_seed.csv"
     wide_df.to_csv(wide_path, index=False)
-    print(f"Saved {wide_path}")
+    logger.info("Saved %s", wide_path)
 
     # --- Aggregated CSV: median/min/max across seeds and last N steps ---
     agg_rows = []
@@ -286,7 +321,7 @@ def write_baseline_summary(df: pd.DataFrame, output_dir: Path) -> None:
     agg_df = pd.DataFrame(agg_rows)
     agg_path = output_dir / "baseline_summary_aggregated.csv"
     agg_df.to_csv(agg_path, index=False)
-    print(f"Saved {agg_path}")
+    logger.info("Saved %s", agg_path)
 
 
 def plot_baseline_metrics_over_time(df: pd.DataFrame, output_dir: Path) -> None:
@@ -395,10 +430,7 @@ def plot_classification_comparison(
     )
 
     fig.tight_layout()
-
-    fig.savefig(output_dir / "classification_comparison.pdf", dpi=500, bbox_inches="tight")
-    plt.close()
-    print("Saved classification_comparison.pdf")
+    save_fig(fig, "classification_comparison.pdf", output_dir)
 
 
 def summarize_classification_methods(
@@ -432,7 +464,7 @@ def summarize_classification_methods(
     wide_df = pd.DataFrame(wide_rows)
     out_path = output_dir / "classification_summary.csv"
     wide_df.to_csv(out_path, index=False)
-    print(f"Saved {out_path}")
+    logger.info("Saved %s", out_path)
 
 
 def create_classification_plots(baseline_path: Path, classification_files: list[tuple[str, Path]]) -> None:
@@ -581,9 +613,7 @@ def plot_parameter_effects(
 
     axes[-1].set_xlabel("Time steps")
     plt.tight_layout()
-    fig.savefig(output_dir / "parameter_effects.pdf", dpi=150)
-    plt.close()
-    print("Saved parameter_effects.pdf")
+    save_fig(fig, "parameter_effects.pdf", output_dir)
 
 
 def create_sensitivity_plots(input_path: Path) -> None:

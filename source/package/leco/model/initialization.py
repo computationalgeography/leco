@@ -160,9 +160,10 @@ def initialize_population(
 
     # Assign language profiles to agents
     # If there are multiple languages initialized, assign the language profiles spatially grouped.
+    quadrants = 4
     if nr_languages == 1:
         profile_assignments = np.zeros(nr_agents, dtype=int)
-    elif nr_languages == 4:
+    elif nr_languages == quadrants:
         # Use the spatial cross distribution
         profile_assignments = initialize_spatial_cross_distribution(x, y, space[0], space[1])
     else:

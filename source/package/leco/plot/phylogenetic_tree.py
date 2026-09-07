@@ -64,6 +64,7 @@ def relabel_parent_continuation(
 
     New labels include the parent + "_vn" with n being an integer.
     """
+    split = 2
     # Find all nodes in the ancestry chain that come from parent: parent and later versions
     # Nodes contain label and time step
     parent_label = str(parent)
@@ -90,7 +91,7 @@ def relabel_parent_continuation(
 
     # Sort timed nodes by switch time and return
     return sorted(
-        [node for node in updated_chain if isinstance(node, tuple) and len(node) == 2],
+        [node for node in updated_chain if isinstance(node, tuple) and len(node) == split],
         key=lambda item: item[1],
     )
 
@@ -101,13 +102,14 @@ def continuous_to_split(ancestry_chains: dict, t_final: int) -> dict:
     To create a phylogeny, these continuation of languages need to be translated in nodes.
     The original language id is assigned a split and the continued language receives a version number.
     """
+    split = 2
     # Store all time switches and children per language
     lang_t_switches = defaultdict(set)
     # Store all parent and children per switch time
     t_switches = defaultdict(lambda: defaultdict(list))
     for leaf, chain in ancestry_chains.items():
         for node in chain:
-            if not isinstance(node, tuple) or len(node) != 2:
+            if not isinstance(node, tuple) or len(node) != split:
                 # Root entries can be plain language ids (len(node)=1) without switch time.
                 continue
             lang, t_switch = node

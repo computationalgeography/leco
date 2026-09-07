@@ -7,7 +7,7 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = "Leco"
-copyright = "2025, Anke Posma"
+copyright = "2025, Anke Posma"  # noqa: A001
 author = "Anke Posma"
 release = "0.0.1"
 

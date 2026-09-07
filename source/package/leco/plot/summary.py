@@ -21,14 +21,16 @@ def calculate_tick_intervals(min_val: int, max_val: int, max_ticks: int = 10) ->
     rough_step = range_val / max_ticks
 
     # Find a "nice" step size (powers of 10, 2, 5)
+    small_step = 2
+    medium_step = 5
     magnitude = 10 ** np.floor(np.log10(rough_step))
     normalized_step = rough_step / magnitude
 
     if normalized_step <= 1:
         nice_step = 1 * magnitude
-    elif normalized_step <= 2:
+    elif normalized_step <= small_step:
         nice_step = 2 * magnitude
-    elif normalized_step <= 5:
+    elif normalized_step <= medium_step:
         nice_step = 5 * magnitude
     else:
         nice_step = 10 * magnitude

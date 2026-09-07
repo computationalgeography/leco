@@ -37,27 +37,17 @@ packages = ["source/package/leco"]
 
 [tool.ruff]
 line-length = 110
-exclude = [
-    ## Unclear problem
-    "documentation/",
-]
 
 [tool.ruff.lint]
 select = ["ALL"]
 ignore = [
     # Missing copyright notice at top of file
     "CPY001",
-    # 'print' statement found
-    "T201",
     # too many arguments in function definition
     "PLR0913",
     "PLR0917",
-    # specifying long messages outside exception class      #WANT TO LEAVE VALUE ERRORS OUT EVENTUALLY ANYWAYS
+    # specifying long messages outside exception class
     "TRY003",
-    # allow magic variables to be defined
-    "PLR2004",
-    # need to specify timezone
-    "DTZ005",
     # Specify docstring at start of file
     "D100",
     # Prefer absolute inputs of relative inputs
@@ -71,9 +61,6 @@ ignore = [
     "EM101",
     "EM102",
     "S101",
-    "TD002",
-    "TD003",
-    "FIX002",
 ]
 
 # Ignore specific commands for the following files

@@ -92,7 +92,8 @@ def initialize_languages(
     language_classification = agglomerative_classification(language_profiles, distance_threshold, linkage)
 
     # Initialize the languages in consistent order when initial language number is four
-    if len(np.unique(language_classification)) == 4:
+    quadrants = 4
+    if len(np.unique(language_classification)) == quadrants:
         coordinates = np.stack([start_population.geometry.x, start_population.geometry.y], axis=1)
         x_mid = coordinates[:, 0].mean()
         y_mid = coordinates[:, 1].mean()
