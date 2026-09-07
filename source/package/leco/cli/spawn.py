@@ -42,6 +42,21 @@ def spawn_cluster(
     )
 
 
+def spawn_plot(
+    configuration_file_path: Path,
+    *,
+    max_nr_workers: int,
+    continue_on_error: bool,
+    arguments: list[str],
+) -> None:
+    spawn.plot(
+        configuration_file_path,
+        max_nr_workers=max_nr_workers,
+        continue_on_error=continue_on_error,
+        arguments=arguments,
+    )
+
+
 @main_function
 def main() -> None:
     """Command line interface for spawn command."""
@@ -50,7 +65,7 @@ def main() -> None:
 Spawn concurrent leco model runs
 
 Usage:
-    {command} (run | cluster)
+    {command} (run | cluster | plot)
         [--max_nr_workers=<nr_workers>] [--continue_on_error]
         <configuration_file> [-- <argument>...]
 
@@ -70,10 +85,17 @@ Options:
 
 Example workflow:
 
-python {command} run --max_nr_workers=4 documentation/spawn.toml
-
-python {command} cluster --max_nr_workers=4 documentation/spawn.toml -- \
+python $LECO/source/script/leco_spawn.py run \
+    --max_nr_workers=4 documentation/spawn.toml -- \
     --linkage average --distance 0.3
+
+python $LECO/source/script/leco_spawn.py cluster \
+    --max_nr_workers=4 documentation/spawn.toml -- \
+    my_geopackage.gpkg
+
+python $LECO/source/script/leco_spawn.py plot \
+    --max_nr_workers=4 documentation/spawn.toml -- \
+    my_geopackage.gpkg
 """
     arguments = docopt.docopt(usage, sys.argv[1:], version=version)
     max_nr_workers = int(arguments["--max_nr_workers"])
@@ -91,6 +113,7 @@ python {command} cluster --max_nr_workers=4 documentation/spawn.toml -- \
     command_to_function = {
         "run": spawn_run,
         "cluster": spawn_cluster,
+        "plot": spawn_plot,
     }
 
     active_command = next(cmd for cmd in command_to_function if arguments[cmd])

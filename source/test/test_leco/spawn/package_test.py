@@ -8,7 +8,7 @@ from leco.spawn.configuration import as_string, expand_range, expand_set
 class PackageTest(unittest.TestCase):
     def test_all_attribute(self):
         self.assertTrue(hasattr(spawn, "__all__"))
-        self.assertEqual(spawn.__all__, ["cluster", "default_max_nr_workers", "run"])
+        self.assertEqual(spawn.__all__, ["cluster", "default_max_nr_workers", "plot", "run"])
 
     def test_default_max_nr_workers(self):
         self.assertGreater(spawn.default_max_nr_workers(), 0)

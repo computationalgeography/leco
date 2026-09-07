@@ -3,9 +3,10 @@
 import os
 
 from .cluster import cluster
+from .plot import plot
 from .run import run
 
-__all__ = ["cluster", "default_max_nr_workers", "run"]
+__all__ = ["cluster", "default_max_nr_workers", "plot", "run"]
 
 
 def default_max_nr_workers() -> int:
