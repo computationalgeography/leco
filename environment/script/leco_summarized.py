@@ -242,7 +242,6 @@ def process_all(directory_path: Path, baseline: bool = False) -> None:
 
     step_to_years = 20
     stats_df = write_meta_data(organized_data, step_to_years, baseline=baseline)
-    print(stats_df)
 
     if baseline:
         # Extract phylogeny information from phylogeny_information.csv
