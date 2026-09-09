@@ -87,11 +87,12 @@ Example workflow:
 
 python $LECO/source/script/leco_spawn.py run \
     --max_nr_workers=4 documentation/spawn.toml -- \
-    --linkage average --distance 0.3
+    --start_geoparquet steps_501_1000.geoparquet \
+    --intermediate_step 1000
 
 python $LECO/source/script/leco_spawn.py cluster \
     --max_nr_workers=4 documentation/spawn.toml -- \
-    my_geopackage.gpkg
+    my_geopackage.gpkg --linkage complete
 
 python $LECO/source/script/leco_spawn.py plot \
     --max_nr_workers=4 documentation/spawn.toml -- \
