@@ -1,13 +1,10 @@
 """Functions to create summary plots of leco model output."""
 
 from pathlib import Path
-from typing import cast
 
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
-from matplotlib.colors import ListedColormap
 
 
 def calculate_tick_intervals(min_val: int, max_val: int, max_ticks: int = 10) -> list[int]:
@@ -79,64 +76,11 @@ def language_number_plot(
     plt.close()
 
 
-def language_speakers_plot(
-    language_speakers: pd.DataFrame,
-    output_path: Path,
-    cmap: ListedColormap,
-    lang_to_index: dict[int, int],
-    step_to_years: int = 20,
-) -> None:
-    """Plot number of agents speaking a language over time."""
-    # Sort the languages by most to least spoken at the first time step,
-    # so most spoken languages are shown on the bottom
-    sorted_cols = language_speakers.iloc[0].sort_values(ascending=False).index
-    language_speakers = language_speakers[sorted_cols]  # type: ignore[arg-type]
-
-    # Scale the index to represent years for each time step (assuming each time step is 20 years)
-    language_speakers.index = language_speakers.index * step_to_years
-
-    # Create color list that matches sorted language columns
-    colors = [cmap.colors[lang_to_index[cast("int", lang)]] for lang in language_speakers.columns.tolist()]  # type: ignore[arg-type]
-
-    _fig, ax = plt.subplots(figsize=(10, 6))
-
-    # Create a stacked area plot for the number of agents per language over time
-    language_speakers.plot.area(
-        ax=ax,
-        stacked=True,
-        color=colors,
-        linewidth=0,
-    )
-
-    ax.get_legend().remove()  # Remove the legend for clarity # type: ignore[arg-type]
-    ax.set_xlim(language_speakers.index.min(), language_speakers.index.max())  # type: ignore[arg-type]
-    ax.set_xlabel("Year", size=18)
-    ax.set_ylabel("Number of Agents", size=18)
-    ax.tick_params(axis="both", labelsize=14)
-    ax.set_title("Number of Agents per Language over Time", size=22)
-
-    # Save the plot
-    plt.savefig(output_path / "Agents_per_Language.png", dpi=150)
-    plt.close()
-
-
 def plot_summaries(
     directory: Path,
     population: gpd.GeoDataFrame,
-    cmap: ListedColormap,
-    lang_to_index: dict[int, int],
 ) -> None:
     """Create summarizing plots of the leco model output."""
     # Create a figure showing the number of languages over time
     number_languages = population.groupby("time_step")["language"].nunique().tolist()
     language_number_plot(directory, number_languages)
-
-    # Create a figure showing the number of agents speaking a language over time
-    language_speakers = population.pivot_table(
-        index="time_step",
-        columns="language",
-        values="id",
-        aggfunc="count",
-        fill_value=0,
-    )
-    language_speakers_plot(language_speakers, directory, cmap, lang_to_index)

@@ -55,9 +55,7 @@ def plot(
     """Create plots of the leco model output."""
     population = gpd.read_file(directory / gpkg_file_name)
 
-    cmap, lang_to_index = create_colormap(population.language, parameters["initialization"]["seed"])
-
-    plot_summaries(directory, population, cmap, lang_to_index)
+    plot_summaries(directory, population)
 
     create_phylogeny(directory, population, parameters["initialization"]["steps"])
     # Select equally distributed steps that you want to visualize spatial distribution of based on k_steps
